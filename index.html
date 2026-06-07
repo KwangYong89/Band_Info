@@ -692,9 +692,13 @@
   <!-- 진행 바 -->
   <div class="px-1 mb-3"><div class="progress-bar"><div id="chkBar" class="progress-fill" style="width:0%"></div></div></div>
   <!-- 항목 추가 -->
-  <div class="flex gap-2 mb-3">
-    <input id="chkInput" type="text" class="ef-input flex-1" placeholder="할 일 추가 (예: 인풋리스트 제출)" onkeydown="if(event.key==='Enter')addChecklistItem()">
-    <button onclick="addChecklistItem()" class="flex-shrink-0 px-4 rounded-ios bg-ios-blue text-white font-semibold btn-press">추가</button>
+  <div class="card p-3 mb-3 space-y-2">
+    <input id="chkInput" type="text" class="ef-input" placeholder="할 일 (직접 입력)" onkeydown="if(event.key==='Enter')addChecklistItem()">
+    <div class="grid grid-cols-2 gap-2">
+      <input id="chkDue" type="date" class="ef-input" onclick="this.showPicker&&this.showPicker()" aria-label="기한">
+      <input id="chkAssignee" type="text" class="ef-input" placeholder="담당자">
+    </div>
+    <button onclick="addChecklistItem()" class="w-full py-2.5 rounded-ios bg-ios-blue text-white font-semibold btn-press">추가</button>
   </div>
   <!-- 목록 -->
   <div id="checklist" class="card overflow-hidden mb-6"></div>
@@ -2386,18 +2390,40 @@ let checklist = JSON.parse(JSON.stringify(DEFAULT_CHECKLIST));
 function loadChecklist() { try { const raw = localStorage.getItem('checklist'); if (raw) { const s = JSON.parse(raw); if (Array.isArray(s)) checklist = s; } } catch (e) {} }
 function persistChecklist() { try { localStorage.setItem('checklist', JSON.stringify(checklist)); } catch (e) {} }
 
+// 기한 → D-day 배지
+function ddayBadge(due, done) {
+  if (!due) return '';
+  const label = computeDday(due);
+  if (!label) return '';
+  let cls = 'bg-ios-blue bg-opacity-10 text-ios-blue';
+  if (done) cls = 'bg-ios-gray2 text-ios-secondary';
+  else if (label.charAt(1) === '+') cls = 'bg-ios-red bg-opacity-10 text-ios-red';      // 기한 지남
+  else if (label === 'D-DAY' || /^D-[0-3]$/.test(label)) cls = 'bg-ios-orange bg-opacity-10 text-ios-orange'; // 임박
+  return `<span class="badge ${cls} text-[10px] flex-shrink-0">${label}</span>`;
+}
 function renderChecklist() {
   const host = document.getElementById('checklist');
   if (!host) return;
   if (!checklist.length) {
     host.innerHTML = '<div class="px-4 py-8 text-center text-[13px] text-ios-secondary">항목이 없습니다. 위에서 추가하세요.</div>';
   } else {
-    host.innerHTML = checklist.map((it, i) => `
+    host.innerHTML = checklist.map((it, i) => {
+      const meta = [];
+      if (it.assignee) meta.push('👤 ' + esc(it.assignee));
+      if (it.due) meta.push('📅 ' + esc(it.due));
+      return `
       <div class="px-4 py-3 flex items-center gap-3 border-b border-ios-gray2 last:border-0">
         <input type="checkbox" ${it.done ? 'checked' : ''} onchange="toggleChecklist(${i},this.checked)" style="width:20px;height:20px;accent-color:#34C759;flex-shrink:0;cursor:pointer">
-        <span class="flex-1 text-[15px] ${it.done ? 'line-through text-ios-gray3' : 'text-ios-label'}">${esc(it.text)}</span>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[15px] ${it.done ? 'line-through text-ios-gray3' : 'text-ios-label'}">${esc(it.text)}</span>
+            ${ddayBadge(it.due, it.done)}
+          </div>
+          ${meta.length ? `<div class="text-[11px] text-ios-secondary mt-0.5">${meta.join(' · ')}</div>` : ''}
+        </div>
         <button onclick="removeChecklistItem(${i})" class="text-ios-red btn-press p-1 flex-shrink-0" aria-label="삭제"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
   const done = checklist.filter(c => c.done).length;
   const total = checklist.length;
@@ -2407,10 +2433,14 @@ function renderChecklist() {
 }
 function addChecklistItem() {
   const inp = document.getElementById('chkInput');
+  const dueEl = document.getElementById('chkDue');
+  const asgEl = document.getElementById('chkAssignee');
   const text = inp ? inp.value.trim() : '';
   if (!text) return;
-  checklist.push({ id: 'c' + Date.now(), text, done: false });
+  checklist.push({ id: 'c' + Date.now(), text, due: dueEl ? dueEl.value : '', assignee: asgEl ? asgEl.value.trim() : '', done: false });
   if (inp) inp.value = '';
+  if (dueEl) dueEl.value = '';
+  if (asgEl) asgEl.value = '';
   persistChecklist();
   renderChecklist();
 }
