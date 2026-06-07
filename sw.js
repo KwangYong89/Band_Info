@@ -1,9 +1,10 @@
-const CACHE_NAME = 'techrider-v45';
+const CACHE_NAME = 'techrider-v47';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  'https://cdn.tailwindcss.com'
+  './icon.svg',
+  './dist.css'
 ];
 
 self.addEventListener('install', (e) => {

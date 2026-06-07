@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>테크라이더 매니저</title>
   <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
   <meta id="themeColorMeta" name="theme-color" content="#F2F2F7" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <script>
     // FOUC 방지: 렌더 전에 저장된 테마(또는 OS 설정)를 즉시 적용
@@ -19,40 +22,7 @@
   </script>
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="TechRider" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            'ios-blue':    '#007AFF',
-            'ios-gray':    '#F2F2F7',
-            'ios-gray2':   '#E5E5EA',
-            'ios-gray3':   '#D1D1D6',
-            'ios-label':   '#1C1C1E',
-            'ios-secondary':'#636366',
-            'ios-green':   '#34C759',
-            'ios-orange':  '#FF9500',
-            'ios-red':     '#FF3B30',
-            'ios-purple':  '#AF52DE',
-            'ios-teal':    '#5AC8FA',
-          },
-          fontFamily: {
-            sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'Segoe UI', 'sans-serif'],
-          },
-          borderRadius: {
-            'ios': '13px',
-            'ios-lg': '20px',
-          },
-          boxShadow: {
-            'ios': '0 2px 20px rgba(0,0,0,0.08)',
-            'ios-sm': '0 1px 8px rgba(0,0,0,0.06)',
-          },
-        }
-      }
-    }
-  </script>
+  <link rel="stylesheet" href="dist.css" />
   <style>
     * { -webkit-tap-highlight-color: transparent; }
     body { background-color: #F2F2F7; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }

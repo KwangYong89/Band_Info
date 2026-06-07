@@ -1,0 +1,3 @@
+# Tailwind 단독 빌드 실행 파일 (배포 불필요, 40MB)
+tailwindcss.exe
+node_modules/
