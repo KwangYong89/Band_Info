@@ -1,0 +1,2358 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>테크라이더 매니저</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta id="themeColorMeta" name="theme-color" content="#F2F2F7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <script>
+    // FOUC 방지: 렌더 전에 저장된 테마(또는 OS 설정)를 즉시 적용
+    (function () {
+      var saved = localStorage.getItem('theme');
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (saved === 'dark' || (!saved && prefersDark)) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="TechRider" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            'ios-blue':    '#007AFF',
+            'ios-gray':    '#F2F2F7',
+            'ios-gray2':   '#E5E5EA',
+            'ios-gray3':   '#D1D1D6',
+            'ios-label':   '#1C1C1E',
+            'ios-secondary':'#636366',
+            'ios-green':   '#34C759',
+            'ios-orange':  '#FF9500',
+            'ios-red':     '#FF3B30',
+            'ios-purple':  '#AF52DE',
+            'ios-teal':    '#5AC8FA',
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'Segoe UI', 'sans-serif'],
+          },
+          borderRadius: {
+            'ios': '13px',
+            'ios-lg': '20px',
+          },
+          boxShadow: {
+            'ios': '0 2px 20px rgba(0,0,0,0.08)',
+            'ios-sm': '0 1px 8px rgba(0,0,0,0.06)',
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    * { -webkit-tap-highlight-color: transparent; }
+    body { background-color: #F2F2F7; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
+    .nav-blur { background: rgba(242,242,247,0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); }
+    .card { background: #fff; border-radius: 13px; box-shadow: 0 2px 20px rgba(0,0,0,0.08); }
+    .card-row { border-bottom: 1px solid #F2F2F7; }
+    .card-row:last-child { border-bottom: none; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    /* ===== 화면/패널 전환 애니메이션 ===== */
+    @keyframes screenIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .screen.active { animation: screenIn .3s cubic-bezier(.22,.61,.36,1); }
+    @keyframes panelIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+    .techpanel:not(.hidden), .setlist-anim { animation: panelIn .22s ease-out; }
+    @media (prefers-reduced-motion: reduce) { .screen.active, .techpanel:not(.hidden), .setlist-anim { animation: none !important; } }
+    /* ===== 세그먼트 슬라이딩 인디케이터 ===== */
+    .seg { position: relative; }
+    .seg > button { position: relative; z-index: 1; background: transparent !important; box-shadow: none !important; transition: color .2s ease; }
+    .seg-ind { position: absolute; left: 0; top: 0; width: 0; height: 0; background: #fff; border-radius: 8px; box-shadow: 0 1px 8px rgba(0,0,0,.08); opacity: 0; z-index: 0; pointer-events: none; transition: transform .28s cubic-bezier(.22,.61,.36,1), width .28s cubic-bezier(.22,.61,.36,1), height .28s ease, opacity .15s ease; }
+    .dark .seg-ind { background: #48484A; }
+    @media (prefers-reduced-motion: reduce) { .seg-ind { transition: opacity .1s; } }
+    .btn-press:active { opacity: 0.6; transform: scale(0.97); transition: all 0.1s; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .stage-grid { display: grid; gap: 8px; }
+    .instrument-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; background: #F2F2F7; color: #1C1C1E; }
+    .channel-row:nth-child(even) { background: #F9F9FB; }
+    .tab-active { color: #007AFF; border-bottom: 2px solid #007AFF; }
+    .progress-bar { height: 4px; border-radius: 2px; background: #E5E5EA; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 2px; background: #007AFF; }
+    ::-webkit-scrollbar { display: none; }
+    .swipe-area { scroll-snap-type: x mandatory; }
+
+    /* 부드러운 테마 전환 */
+    body, .card, .nav-blur, .instrument-chip { transition: background-color .25s ease, color .25s ease, border-color .25s ease; }
+
+    /* ===== 다크 모드 (iOS 다크 시스템 팔레트) ===== */
+    /* 배경/표면 */
+    .dark body { background-color: #000000; color: #F2F2F7; }
+    .dark .bg-ios-gray { background-color: #000000; }
+    .dark .card { background: #1C1C1E; box-shadow: 0 2px 20px rgba(0,0,0,0.5); }
+    .dark .card-row { border-bottom-color: #38383A; }
+    .dark .nav-blur { background: rgba(28,28,30,0.8); }
+    .dark .instrument-chip { background: #2C2C2E; color: #F2F2F7; }
+    .dark .channel-row:nth-child(even) { background: #2C2C2E; }
+    .dark .progress-bar { background: #38383A; }
+
+    /* 중립 표면 유틸리티 */
+    .dark .bg-white { background-color: #48484A; }          /* 세그먼트 컨트롤 활성 썸 */
+    .dark .bg-gray-50 { background-color: #2C2C2E; }
+    .dark .hover\:bg-gray-50:hover { background-color: #2C2C2E; }
+    .dark .bg-ios-gray2 { background-color: #2C2C2E; }      /* 세그먼트 트랙 / 헤더 / 구분선 */
+    .dark .bg-ios-label { background-color: #636366; }      /* 어두운 번호 원형 → 가시성 확보 */
+
+    /* 구분선 / 테두리 */
+    .dark .border-ios-gray2 { border-color: #38383A; }
+    .dark .divide-ios-gray2 > :not([hidden]) ~ :not([hidden]) { border-color: #38383A; }
+
+    /* 텍스트 (액센트는 iOS 다크 변형으로 더 밝게) */
+    .dark .text-ios-label { color: #F2F2F7; }
+    .dark .text-ios-secondary { color: #98989F; }
+    .dark .text-ios-gray3 { color: #5A5A5E; }
+    .dark .text-ios-blue { color: #0A84FF; }
+    .dark .text-ios-green { color: #30D158; }
+    .dark .text-ios-orange { color: #FF9F0A; }
+    .dark .text-ios-red { color: #FF453A; }
+    .dark .text-ios-purple { color: #BF5AF2; }
+    .dark .text-ios-teal { color: #64D2FF; }
+
+    /* ===== 무대 배치도 (드래그 가능) ===== */
+    .stage-canvas { position: relative; }
+    .stage-deco { position: absolute; background: #8E8E93; border-radius: 4px; pointer-events: none; }
+    .stage-deco-label { position: absolute; text-align: center; font-size: 8px; font-weight: 600; color: #636366; pointer-events: none; }
+    .stage-foh { position: absolute; text-align: center; font-size: 9px; font-weight: 700; color: #007AFF; background: rgba(0,122,255,0.15); border-radius: 4px; padding: 3px 0; pointer-events: none; }
+    .stage-aud { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font-size: 9px; font-weight: 600; color: #636366; pointer-events: none; }
+    .dark .stage-deco-label, .dark .stage-aud { color: #98989F; }
+
+    .stage-el { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; width: auto; text-align: center; line-height: 1; user-select: none; -webkit-user-select: none; touch-action: none; transition: transform .1s ease, filter .15s ease; }
+    .stage-el-icon { line-height: 0; }
+    .stage-el-icon .si { width: 30px; height: 30px; display: block; }
+    .stage-el-label { margin-top: 3px; background: var(--accent); color: #fff; padding: 1.5px 7px; border-radius: 9px; font-size: 9px; font-weight: 800; letter-spacing: -0.2px; white-space: nowrap; }
+    .stage-canvas.editing .stage-el { cursor: grab; }
+    .stage-canvas.editing .stage-el::after { content: ''; position: absolute; inset: -6px; border: 1.5px dashed #007AFF; border-radius: 8px; opacity: 0.6; pointer-events: none; }
+    .stage-el.dragging { cursor: grabbing; transform: scale(1.1); z-index: 30; filter: drop-shadow(0 6px 8px rgba(0,0,0,0.28)); }
+    /* 하우스 배치(배경) — 흐리게, 비상호작용 */
+    .house-bg-el { opacity: .38; pointer-events: none; }
+    .stage-canvas.editing .house-bg-el::after { display: none; }
+    /* 인풋 채널 체크박스 */
+    .inp-chk { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #1C1C1E; cursor: pointer; }
+    .inp-chk input[type=checkbox] { width: 15px; height: 15px; accent-color: #007AFF; }
+    .dark .inp-chk { color: #F2F2F7; }
+
+    /* ===== 홈 히어로 포스터 레이어 ===== */
+    .hero-poster { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0.5; pointer-events: none; }
+
+    /* ===== 편집 폼 (iOS 스타일 입력) ===== */
+    .ef-label { display: block; font-size: 12px; font-weight: 600; color: #636366; margin-bottom: 4px; }
+    .ef-input { width: 100%; box-sizing: border-box; background: #F2F2F7; border: 1.5px solid transparent; border-radius: 10px; padding: 9px 11px; font-size: 14px; color: #1C1C1E; outline: none; transition: border-color .15s, background .15s; color-scheme: light; }
+    .ef-compact { flex: 1; min-width: 0; padding-left: 4px; padding-right: 2px; font-size: 13px; text-align: center; }
+    .dark .ef-input { color-scheme: dark; }
+    .ef-input::placeholder { color: #B0B0B6; }
+    textarea.ef-input { resize: vertical; min-height: 56px; line-height: 1.4; font-family: inherit; }
+    .ef-input:focus { border-color: #007AFF; background: #fff; }
+    .ef-check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: #1C1C1E; cursor: pointer; }
+    .ef-check input[type=checkbox] { width: 18px; height: 18px; accent-color: #007AFF; flex-shrink: 0; cursor: pointer; }
+    .dark .ef-check { color: #F2F2F7; }
+    .ef-poster-btn { display: inline-flex; align-items: center; gap: 5px; padding: 9px 12px; border-radius: 10px; background: rgba(0,122,255,0.1); color: #007AFF; font-size: 13px; font-weight: 700; white-space: nowrap; }
+    .ef-poster-thumb { width: 46px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid #E5E5EA; flex-shrink: 0; }
+    .dark .ef-label { color: #98989F; }
+    .dark .ef-input { background: #2C2C2E; color: #F2F2F7; }
+    .dark .ef-input::placeholder { color: #6A6A6E; }
+    .dark .ef-input:focus { background: #1C1C1E; }
+    .dark .ef-poster-btn { background: rgba(10,132,255,0.18); color: #0A84FF; }
+    .dark .ef-poster-thumb { border-color: #38383A; }
+
+    /* ===== 저장 토스트 ===== */
+    .toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%) translateY(12px); background: rgba(28,28,30,0.92); color: #fff; font-size: 13px; font-weight: 500; padding: 10px 18px; border-radius: 22px; opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease; z-index: 100; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body class="min-h-screen bg-ios-gray">
+
+<!-- ===== TOP NAV BAR ===== -->
+<header id="topNav" class="nav-blur sticky top-0 z-50 border-b border-ios-gray2">
+  <div class="max-w-4xl mx-auto px-4 flex items-center justify-between h-14">
+    <button id="backBtn" onclick="goBack()" class="hidden items-center gap-1 text-ios-blue font-medium text-[15px] btn-press">
+      <svg width="10" height="17" viewBox="0 0 10 17" fill="none"><path d="M9 1L1 8.5L9 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="backLabel">홈</span>
+    </button>
+    <div id="navTitle" class="font-semibold text-[17px] text-ios-label tracking-tight">🎸 테크라이더</div>
+    <div class="flex justify-end items-center gap-1">
+      <button id="themeToggle" onclick="toggleTheme()" aria-label="라이트/다크 모드 전환" class="text-ios-blue btn-press p-1">
+        <!-- 라이트 모드일 때 표시: 달 (탭하면 다크로) -->
+        <svg id="iconMoon" width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <!-- 다크 모드일 때 표시: 해 (탭하면 라이트로) -->
+        <svg id="iconSun" class="hidden" width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2.2M12 19.8V22M4.22 4.22l1.56 1.56M18.22 18.22l1.56 1.56M2 12h2.2M19.8 12H22M4.22 19.78l1.56-1.56M18.22 5.78l1.56-1.56" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button onclick="showScreen('settings')" aria-label="설정" class="text-ios-blue btn-press p-1">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 pb-28">
+
+<!-- ===================================== -->
+<!-- SCREEN: HOME DASHBOARD               -->
+<!-- ===================================== -->
+<div id="screen-home" class="screen active pt-4">
+
+  <!-- Hero Card: 현재 공연 -->
+  <div id="heroCard" class="card p-5 mb-4 relative overflow-hidden">
+    <div id="heroDeco" class="absolute top-0 right-0 w-40 h-40 rounded-full bg-ios-blue opacity-5 -translate-y-10 translate-x-10"></div>
+    <div id="heroPoster" class="hero-poster hidden"></div>
+    <div class="relative z-10">
+      <div class="flex items-start justify-between mb-3">
+        <span class="badge bg-ios-green text-white">● UPCOMING</span>
+        <span id="heroDday" class="text-xs text-ios-secondary font-medium">D-12</span>
+      </div>
+      <h2 class="text-[22px] font-bold text-ios-label leading-tight mb-1"><span id="heroSubtitleWrap"><span id="heroSubtitle">연합 밴드 페스티벌</span><br/></span><span id="heroName">SUMMER GROOVE 2026</span></h2>
+      <div class="mt-3 space-y-1.5">
+        <div class="flex items-center gap-2 text-sm text-ios-secondary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#636366" stroke-width="1.8"/><path d="M8 2v4M16 2v4M3 10h18" stroke="#636366" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span id="heroDate" class="font-medium text-ios-label">2026년 6월 18일 (목) · 18:00~22:30</span>
+        </div>
+        <div class="flex items-center gap-2 text-sm text-ios-secondary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="#636366" stroke-width="1.8"/><circle cx="12" cy="9" r="2.5" stroke="#636366" stroke-width="1.8"/></svg>
+          <span id="heroVenue" class="font-medium text-ios-label">홍대 V-HALL 대공연장</span>
+        </div>
+        <div class="flex items-center gap-2 text-sm text-ios-secondary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#636366" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="#636366" stroke-width="1.8"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="#636366" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>참여 팀 <strong id="heroTeams" class="text-ios-label">4개 밴드</strong> · 총 <strong id="heroMembers" class="text-ios-label">23명</strong></span>
+        </div>
+      </div>
+      <!-- Progress -->
+      <div class="mt-4">
+        <div class="flex justify-between text-xs text-ios-secondary mb-1.5">
+          <span>준비 진행률</span><span id="heroProgressLabel" class="text-ios-blue font-semibold">75%</span>
+        </div>
+        <div class="progress-bar"><div id="heroProgressFill" class="progress-fill" style="width:75%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 Action Buttons -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+
+    <button onclick="showScreen('concert-info')" class="card p-5 text-left btn-press flex sm:flex-col items-center sm:items-start gap-4">
+      <div class="w-12 h-12 rounded-[10px] bg-ios-blue flex items-center justify-center flex-shrink-0">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 12h6M9 16h4" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <div class="font-semibold text-[16px] text-ios-label">공연 정보</div>
+        <div class="text-xs text-ios-secondary mt-0.5">일정 · 라인업 · 타임테이블</div>
+      </div>
+      <svg class="ml-auto sm:hidden w-4 h-4 text-ios-gray3" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#D1D1D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+
+    <button onclick="showScreen('setlist')" class="card p-5 text-left btn-press flex sm:flex-col items-center sm:items-start gap-4">
+      <div class="w-12 h-12 rounded-[10px] bg-ios-orange flex items-center justify-center flex-shrink-0">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 18V5l12-2v13" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" stroke="white" stroke-width="2"/><circle cx="18" cy="16" r="3" stroke="white" stroke-width="2"/></svg>
+      </div>
+      <div>
+        <div class="font-semibold text-[16px] text-ios-label">Set List</div>
+        <div class="text-xs text-ios-secondary mt-0.5">곡 순서 · 타임라인 · 특이사항</div>
+      </div>
+      <svg class="ml-auto sm:hidden w-4 h-4 text-ios-gray3" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#D1D1D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+
+    <button onclick="showScreen('tech-rider')" class="card p-5 text-left btn-press flex sm:flex-col items-center sm:items-start gap-4">
+      <div class="w-12 h-12 rounded-[10px] bg-ios-purple flex items-center justify-center flex-shrink-0">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" stroke="white" stroke-width="2"/><path d="M8 21h8M12 17v4" stroke="white" stroke-width="2" stroke-linecap="round"/><circle cx="8" cy="10" r="2" stroke="white" stroke-width="2"/><path d="M14 9h4M14 12h3" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <div class="font-semibold text-[16px] text-ios-label">테크라이더</div>
+        <div class="text-xs text-ios-secondary mt-0.5">Stage Plot · 채널 맵 · DI</div>
+      </div>
+      <svg class="ml-auto sm:hidden w-4 h-4 text-ios-gray3" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#D1D1D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+
+  </div>
+
+  <!-- 빠른 현황 -->
+  <div class="mb-4">
+    <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">빠른 현황</h3>
+    <div class="card divide-y divide-ios-gray2">
+      <div class="card-row flex items-center justify-between px-4 py-3">
+        <span class="text-[15px] text-ios-label">사운드 체크</span>
+        <span class="badge bg-ios-orange bg-opacity-15 text-ios-orange">준비중</span>
+      </div>
+      <div class="card-row flex items-center justify-between px-4 py-3">
+        <span class="text-[15px] text-ios-label">무대 배치 확정</span>
+        <span class="badge bg-ios-green bg-opacity-15 text-ios-green">완료</span>
+      </div>
+      <div class="card-row flex items-center justify-between px-4 py-3">
+        <span class="text-[15px] text-ios-label">채널 맵 제출</span>
+        <span class="badge bg-ios-green bg-opacity-15 text-ios-green">완료</span>
+      </div>
+      <div class="card-row flex items-center justify-between px-4 py-3">
+        <span class="text-[15px] text-ios-label">리허설 스케줄</span>
+        <span class="badge bg-ios-red bg-opacity-15 text-ios-red">미확정</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 공지사항 -->
+  <div>
+    <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">최근 공지</h3>
+    <div class="card px-4 py-3 flex gap-3">
+      <div class="w-8 h-8 rounded-full bg-ios-blue bg-opacity-10 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <p class="text-[14px] font-medium text-ios-label">입·퇴장 동선 변경 안내</p>
+        <p class="text-[13px] text-ios-secondary mt-0.5">6/15(월) 리허설 시 백스테이지 동선이 변경되었습니다. 공연 정보 탭을 확인해주세요.</p>
+        <p class="text-xs text-ios-gray3 mt-1.5">2026.06.05</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /screen-home -->
+
+
+<!-- ===================================== -->
+<!-- SCREEN: 공연 정보                      -->
+<!-- ===================================== -->
+<div id="screen-concert-info" class="screen pt-4">
+
+  <!-- 공연 상세 -->
+  <div class="flex items-center justify-between px-1 mb-2">
+    <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider">공연 상세</h3>
+    <button onclick="openEditConcert()" class="text-[13px] text-ios-blue font-semibold btn-press">수정</button>
+  </div>
+  <div id="ciDetails" class="card mb-4 divide-y divide-ios-gray2"></div>
+
+  <!-- 타임테이블 -->
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">타임테이블</h3>
+  <div id="ciTimetable" class="card mb-4 divide-y divide-ios-gray2"></div>
+
+  <!-- 장소 안내 -->
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">장소 안내</h3>
+  <div id="ciVenue" class="card mb-6 divide-y divide-ios-gray2"></div>
+
+</div><!-- /screen-concert-info -->
+
+
+<!-- ===================================== -->
+<!-- SCREEN: 공연 정보 수정                 -->
+<!-- ===================================== -->
+<div id="screen-edit-concert" class="screen pt-4">
+
+  <!-- 공연 상세 -->
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">공연 상세</h3>
+  <div class="card p-4 mb-4 space-y-3">
+    <div>
+      <label class="ef-label">공연명</label>
+      <div class="flex gap-2">
+        <input id="ef-name" type="text" class="ef-input flex-1" />
+        <button onclick="triggerPosterUpload()" class="ef-poster-btn btn-press" aria-label="포스터 업로드">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.8" stroke="currentColor" stroke-width="2"/><path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          포스터
+        </button>
+      </div>
+      <div id="ef-poster-preview" class="hidden mt-2 flex items-center gap-3">
+        <img id="ef-poster-img" class="ef-poster-thumb" alt="포스터 미리보기" />
+        <div class="text-[12px] text-ios-secondary">포스터가 추가되었습니다.<br/>저장 시 홈 카드 배경으로 적용됩니다.</div>
+        <button onclick="removePosterDraft()" class="ml-auto text-[13px] text-ios-red font-semibold btn-press">제거</button>
+      </div>
+      <input id="ef-poster-file" type="file" accept="image/png,image/jpeg,image/jpg" class="hidden" onchange="onPosterFile(event)" />
+    </div>
+    <div><label class="ef-label">부제 (윗줄)</label><input id="ef-subtitle" type="text" class="ef-input" /></div>
+    <div>
+      <label class="ef-label">일시 (날짜를 누르면 달력이 열려요)</label>
+      <input id="ef-date" type="date" class="ef-input mb-2" onclick="this.showPicker&&this.showPicker()" />
+      <div class="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+        <input id="ef-timeStart" type="time" class="ef-input" onclick="this.showPicker&&this.showPicker()" />
+        <span class="text-ios-secondary text-sm text-center">~</span>
+        <input id="ef-timeEnd" type="time" class="ef-input" onclick="this.showPicker&&this.showPicker()" />
+      </div>
+    </div>
+    <p class="text-[12px] text-ios-secondary px-0.5 -mt-1">D-Day와 준비 진행률은 날짜·입력 내용에 따라 자동 계산됩니다.</p>
+    <div><label class="ef-label">장소</label><input id="ef-venue" type="text" class="ef-input" /></div>
+    <div class="grid grid-cols-2 gap-3">
+      <div><label class="ef-label">수용 인원</label><input id="ef-capacity" type="text" class="ef-input" /></div>
+      <div><label class="ef-label">티켓</label><input id="ef-ticket" type="text" class="ef-input" /></div>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div><label class="ef-label">참여 팀</label><input id="ef-teams" type="text" class="ef-input" /></div>
+      <div><label class="ef-label">총 인원</label><input id="ef-members" type="text" class="ef-input" /></div>
+    </div>
+  </div>
+
+  <!-- 타임테이블 -->
+  <div class="flex items-center justify-between px-1 mb-2">
+    <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider">타임테이블</h3>
+    <button onclick="addTtRow()" class="text-[13px] text-ios-blue font-semibold btn-press">+ 행 추가</button>
+  </div>
+  <div id="ttEditor" class="space-y-2 mb-4"></div>
+
+  <!-- 장소 -->
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">장소</h3>
+  <div class="card p-4 mb-4 space-y-3">
+    <div><label class="ef-label">주소</label><input id="ef-venueAddress" type="text" class="ef-input" /></div>
+
+    <div>
+      <label class="ef-label">입장 시간 (5분 단위)</label>
+      <div class="grid grid-cols-2 gap-2">
+        <select id="ef-admHour" class="ef-input"></select>
+        <select id="ef-admMin" class="ef-input"></select>
+      </div>
+    </div>
+
+    <div>
+      <label class="ef-label">반입 가능 (체크 = 허용)</label>
+      <div class="space-y-2">
+        <label class="ef-check"><input type="checkbox" id="ef-ci-food" /><span>🍔 음식</span></label>
+        <label class="ef-check"><input type="checkbox" id="ef-ci-drink" /><span>🥤 음료</span></label>
+        <label class="ef-check"><input type="checkbox" id="ef-ci-alcohol" /><span>🍺 술</span></label>
+        <div class="flex items-center gap-2">
+          <label class="ef-check"><input type="checkbox" id="ef-ci-etc" /><span>기타</span></label>
+          <input id="ef-ci-etcLabel" type="text" class="ef-input flex-1" placeholder="기타 항목 직접 입력" />
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <label class="ef-label">주차</label>
+      <label class="ef-check mb-2"><input type="checkbox" id="ef-pk-avail" onchange="togglePkFree()" /><span>주차장 있음</span></label>
+      <div id="ef-pk-freewrap">
+        <label class="ef-label">무료 이용 시간</label>
+        <select id="ef-pk-free" class="ef-input"></select>
+      </div>
+    </div>
+  </div>
+
+  <!-- 저장 / 취소 -->
+  <div class="flex gap-3 mb-8">
+    <button onclick="goBack()" class="flex-1 py-3 rounded-ios bg-ios-gray2 text-ios-label font-semibold btn-press">취소</button>
+    <button onclick="saveConcert()" class="flex-1 py-3 rounded-ios bg-ios-blue text-white font-semibold btn-press">저장</button>
+  </div>
+
+</div><!-- /screen-edit-concert -->
+
+
+<!-- ===================================== -->
+<!-- SCREEN: 팀 정보 (Team Info)            -->
+<!-- ===================================== -->
+<div id="screen-team-info" class="screen pt-4">
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-1">팀 정보 (Team Info)</h3>
+  <p class="text-[12px] text-ios-secondary px-1 mb-3">팀 탭을 선택해 편집하고, 오른쪽 <span class="text-ios-blue font-semibold">＋</span> 로 팀을 추가하세요. 변경은 하단 <span class="text-ios-blue font-semibold">저장</span> 시 반영됩니다.</p>
+  <!-- 팀 탭 + 추가 버튼 -->
+  <div class="flex items-center gap-2 mb-4">
+    <div id="teamTabs" class="seg flex-1 min-w-0 flex gap-1 bg-ios-gray2 rounded-[10px] p-1 overflow-x-auto"></div>
+    <button onclick="addTeam()" aria-label="팀 추가" class="flex-shrink-0 w-9 h-9 rounded-[10px] bg-ios-blue text-white flex items-center justify-center btn-press shadow-ios-sm">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <!-- 서브탭: 기본 정보 / Set List / 테크라이더 -->
+  <div id="teamSubTabs" class="seg flex gap-0 mb-4 bg-ios-gray2 rounded-[10px] p-1">
+    <button onclick="switchTeamSub('basic')" id="teamsub-basic" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all bg-white text-ios-blue shadow-ios-sm">기본 정보</button>
+    <button onclick="switchTeamSub('setlist')" id="teamsub-setlist" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all text-ios-secondary">Set List</button>
+    <button onclick="switchTeamSub('rider')" id="teamsub-rider" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all text-ios-secondary">테크라이더</button>
+  </div>
+  <!-- 선택된 팀 상세/편집 -->
+  <div id="teamDetail" class="card p-4 space-y-3"></div>
+  <!-- 저장 / 취소 -->
+  <div class="flex gap-3 mt-4 mb-8">
+    <button onclick="cancelTeams()" class="flex-1 py-3 rounded-ios bg-ios-gray2 text-ios-label font-semibold btn-press">취소</button>
+    <button onclick="saveTeams()" class="flex-1 py-3 rounded-ios bg-ios-blue text-white font-semibold btn-press">저장</button>
+  </div>
+</div><!-- /screen-team-info -->
+
+
+<!-- ===================================== -->
+<!-- SCREEN: 무대 정보 (Stage Info)         -->
+<!-- ===================================== -->
+<div id="screen-stage-info" class="screen pt-4">
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">무대 배치도</h3>
+  <div class="card p-4 mb-4">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider">하우스 / 무대 배치</div>
+      <button id="houseEditBtn" onclick="toggleHouseEdit()" aria-label="배치 수정/저장" class="text-ios-blue btn-press p-1">
+        <svg id="houseEditIcon" width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg id="houseSaveIcon" class="hidden" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 21v-8H7v8M7 3v5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div id="houseHint" class="hidden mb-3 text-[12px] text-ios-blue bg-ios-blue/10 rounded-lg px-3 py-2">요소를 끌어서 위치를 옮긴 뒤 저장 버튼을 누르세요.</div>
+    <div id="houseCanvas" class="stage-canvas bg-gray-50 rounded-xl mb-4 overflow-hidden" style="aspect-ratio: 360 / 220; max-width: 480px; margin-left:auto; margin-right:auto;">
+      <div class="stage-aud">▼ AUDIENCE</div>
+      <div id="houseElements"></div>
+    </div>
+  </div>
+
+  <div class="flex items-center justify-between px-1 mb-2">
+    <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider">음향</h3>
+    <button onclick="addSoundCustom()" class="text-[13px] text-ios-blue font-semibold btn-press">+ 기타 추가</button>
+  </div>
+  <div class="card p-4 mb-4">
+    <div id="soundList"></div>
+  </div>
+
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">백라인 / 기타</h3>
+  <div class="card p-4 mb-4 space-y-3">
+    <div><label class="ef-label">백라인 (공용 장비)</label><textarea id="sf-backline" class="ef-input" rows="2"></textarea></div>
+    <div><label class="ef-label">비고</label><textarea id="sf-notes" class="ef-input" rows="3"></textarea></div>
+  </div>
+
+  <div class="flex gap-3 mb-8">
+    <button onclick="goBack()" class="flex-1 py-3 rounded-ios bg-ios-gray2 text-ios-label font-semibold btn-press">취소</button>
+    <button onclick="saveStageInfo()" class="flex-1 py-3 rounded-ios bg-ios-blue text-white font-semibold btn-press">저장</button>
+  </div>
+</div><!-- /screen-stage-info -->
+
+
+<!-- ===================================== -->
+<!-- SCREEN: SET LIST                      -->
+<!-- ===================================== -->
+<div id="screen-setlist" class="screen pt-4">
+
+  <!-- Band Tabs (팀 정보 연동) -->
+  <div id="setlistTabs" class="seg flex gap-1 mb-4 bg-ios-gray2 rounded-[10px] p-1 overflow-x-auto"></div>
+
+  <!-- 선택 팀 셋리스트 -->
+  <div id="setlistBody"></div>
+
+</div><!-- /screen-setlist -->
+
+
+<!-- ===================================== -->
+<!-- SCREEN: 테크라이더                     -->
+<!-- ===================================== -->
+<div id="screen-tech-rider" class="screen pt-4">
+
+  <!-- 팀(밴드) 선택 -->
+  <div class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">팀 선택</div>
+  <div id="techBandTabs" class="seg flex gap-0 mb-4 bg-ios-gray2 rounded-[10px] p-1">
+    <button onclick="switchTechBand(0)" id="techbandtab-0" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all bg-white text-ios-blue shadow-ios-sm">블루문</button>
+    <button onclick="switchTechBand(1)" id="techbandtab-1" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all text-ios-secondary">레드노이즈</button>
+    <button onclick="switchTechBand(2)" id="techbandtab-2" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all text-ios-secondary">그린웨이브</button>
+    <button onclick="switchTechBand(3)" id="techbandtab-3" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all text-ios-secondary">나이트폴</button>
+  </div>
+
+  <!-- Sub-tabs: Stage Plot / Input List / Output -->
+  <div id="techSubTabs" class="seg flex gap-0 mb-4 bg-ios-gray2 rounded-[10px] p-1">
+    <button onclick="switchTechTab('stage')" id="techtab-stage" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all bg-white text-ios-blue shadow-ios-sm">Stage Plot</button>
+    <button onclick="switchTechTab('input')" id="techtab-input" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all text-ios-secondary">Input List</button>
+    <button onclick="switchTechTab('output')" id="techtab-output" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all text-ios-secondary">Output / Mon</button>
+  </div>
+
+  <!-- Stage Plot Panel -->
+  <div id="techpanel-stage" class="techpanel">
+    <div class="card mb-4 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider">무대 배치도 — <span class="tech-band-name text-ios-blue normal-case">블루문</span></div>
+        <button id="stageEditBtn" onclick="toggleStageEdit()" aria-label="배치도 수정/저장" class="text-ios-blue btn-press p-1">
+          <!-- 톱니(수정) -->
+          <svg id="stageEditIcon" width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <!-- 디스크(저장) -->
+          <svg id="stageSaveIcon" class="hidden" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 21v-8H7v8M7 3v5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <div id="stageHint" class="hidden mb-3 text-[12px] text-ios-blue bg-ios-blue/10 rounded-lg px-3 py-2 flex items-center gap-2">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>요소를 끌어서(드래그) 위치를 옮긴 뒤, 저장 버튼을 누르세요.</span>
+      </div>
+
+      <div id="stageCanvas" class="stage-canvas bg-gray-50 rounded-xl mb-4 overflow-hidden" style="aspect-ratio: 360 / 220; max-width: 480px; margin-left:auto; margin-right:auto;">
+        <!-- 무대 정보의 하우스 배치 (배경, 드래그 불가) -->
+        <div id="stageHouseBg"></div>
+        <div class="stage-aud">▼ AUDIENCE</div>
+        <!-- 드래그 가능한 밴드 요소 (JS 렌더링) -->
+        <div id="stageElements"></div>
+      </div>
+      <!-- Legend (팀 구성 기반 자동 생성) -->
+      <div class="text-[11px] font-semibold text-ios-secondary uppercase tracking-wider mb-2">구성</div>
+      <div id="stageLegend" class="grid grid-cols-2 gap-2 text-[12px]"></div>
+    </div>
+  </div>
+
+  <!-- Input List Panel -->
+  <div id="techpanel-input" class="techpanel hidden">
+    <div class="flex items-center justify-between px-1 mb-2">
+      <div class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider">인풋 채널 맵 — <span class="tech-band-name text-ios-blue normal-case">블루문</span></div>
+      <button id="inputEditBtn" onclick="toggleInputEdit()" aria-label="인풋 수정/저장" class="text-ios-blue btn-press p-1">
+        <svg id="inputEditIcon" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg id="inputSaveIcon" class="hidden" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 21v-8H7v8M7 3v5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <p id="inputHint" class="text-[11px] text-ios-secondary px-1 mb-3">저장된 인풋 채널 맵입니다. 수정하려면 ✎ 버튼을 누르세요.</p>
+    <div class="card overflow-hidden mb-4">
+      <div id="channelList">
+        <!-- 채널 카드: 팀 구성 기반 JS 렌더링 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Output / Monitor Panel -->
+  <div id="techpanel-output" class="techpanel hidden">
+    <div class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">아웃풋 / 모니터 구성</div>
+
+    <div class="card mb-4 divide-y divide-ios-gray2">
+      <div class="px-4 py-3">
+        <div class="text-[14px] font-semibold text-ios-label mb-2">FOH (Front of House)</div>
+        <div class="space-y-1.5 text-[13px]">
+          <div class="flex justify-between"><span class="text-ios-secondary">Main L/R</span><span class="font-medium text-ios-label">PA 좌우 메인 스피커</span></div>
+          <div class="flex justify-between"><span class="text-ios-secondary">Sub</span><span class="font-medium text-ios-label">서브우퍼 (2개)</span></div>
+          <div class="flex justify-between"><span class="text-ios-secondary">Delay</span><span class="font-medium text-ios-label">딜레이 스피커 (장소 확인 필요)</span></div>
+        </div>
+      </div>
+      <div class="px-4 py-3">
+        <div class="text-[14px] font-semibold text-ios-label mb-2">모니터 믹스</div>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-[13px] font-medium text-ios-label">MON 1 — 보컬 센터 웨지</div>
+              <div class="text-xs text-ios-secondary">보컬 L + 어쿠스틱 기타</div>
+            </div>
+            <span class="badge bg-ios-green bg-opacity-10 text-ios-green">웨지</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-[13px] font-medium text-ios-label">MON 2 — 드럼 웨지</div>
+              <div class="text-xs text-ios-secondary">킥 + 보컬 + 베이스</div>
+            </div>
+            <span class="badge bg-ios-green bg-opacity-10 text-ios-green">웨지</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-[13px] font-medium text-ios-label">MON 3 — 기타리스트 웨지</div>
+              <div class="text-xs text-ios-secondary">보컬 + 드럼 킥/스네어</div>
+            </div>
+            <span class="badge bg-ios-green bg-opacity-10 text-ios-green">웨지</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-[13px] font-medium text-ios-label">IEM — 나이트폴 전용</div>
+              <div class="text-xs text-ios-secondary">헤드라이너 팀 개인 인이어 (자체 장비)</div>
+            </div>
+            <span class="badge bg-ios-purple bg-opacity-10 text-ios-purple">IEM</span>
+          </div>
+        </div>
+      </div>
+      <div class="px-4 py-3">
+        <div class="text-[14px] font-semibold text-ios-label mb-2">특수 요청</div>
+        <ul class="text-[13px] text-ios-secondary space-y-1 list-disc list-inside">
+          <li>브라스 세션 전용 모니터 믹스 별도 send 요청</li>
+          <li>키보드 → FOH 스테레오 다이렉트 연결</li>
+          <li>나이트폴 IEM 트랜스미터 전원 공급 (AC) 스테이지 좌측 요청</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- DI Box 현황 -->
+    <div class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">DI Box 현황</div>
+    <div class="card divide-y divide-ios-gray2 mb-6">
+      <div class="px-4 py-3 flex items-center justify-between">
+        <div><div class="text-[14px] font-medium text-ios-label">어쿠스틱 기타 ×2</div><div class="text-xs text-ios-secondary">그린 웨이브</div></div>
+        <span class="badge bg-ios-orange bg-opacity-10 text-ios-orange">공연장 대여</span>
+      </div>
+      <div class="px-4 py-3 flex items-center justify-between">
+        <div><div class="text-[14px] font-medium text-ios-label">베이스 DI (Radial J48)</div><div class="text-xs text-ios-secondary">레드 노이즈</div></div>
+        <span class="badge bg-ios-green bg-opacity-10 text-ios-green">자체 지참</span>
+      </div>
+      <div class="px-4 py-3 flex items-center justify-between">
+        <div><div class="text-[14px] font-medium text-ios-label">키보드 DI ×2 (스테레오)</div><div class="text-xs text-ios-secondary">나이트폴, 블루문</div></div>
+        <span class="badge bg-ios-orange bg-opacity-10 text-ios-orange">공연장 대여</span>
+      </div>
+      <div class="px-4 py-3 flex items-center justify-between">
+        <div><div class="text-[14px] font-medium text-ios-label">바이올린 픽업 DI</div><div class="text-xs text-ios-secondary">그린 웨이브</div></div>
+        <span class="badge bg-ios-red bg-opacity-10 text-ios-red">미확인</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /screen-tech-rider -->
+
+
+<!-- ===================================== -->
+<!-- SCREEN: SETTINGS                      -->
+<!-- ===================================== -->
+<div id="screen-settings" class="screen pt-4">
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">앱 정보</h3>
+  <div class="card mb-4 divide-y divide-ios-gray2">
+    <div class="px-4 py-3 flex justify-between items-center">
+      <span class="text-[15px] text-ios-label">앱 버전</span>
+      <span class="text-[15px] text-ios-secondary">v1.0.0</span>
+    </div>
+    <div class="px-4 py-3 flex justify-between items-center">
+      <span class="text-[15px] text-ios-label">마지막 업데이트</span>
+      <span class="text-[15px] text-ios-secondary">2026.06.05</span>
+    </div>
+  </div>
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">공연 정보 편집</h3>
+  <div class="card mb-4 divide-y divide-ios-gray2">
+    <button onclick="openEditConcert()" class="px-4 py-3 flex items-center justify-between w-full btn-press">
+      <span class="text-[15px] text-ios-blue">공연 정보 수정</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#D1D1D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button onclick="openTeamInfo()" class="px-4 py-3 flex items-center justify-between w-full btn-press">
+      <span class="text-[15px] text-ios-blue">밴드 추가/수정</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#D1D1D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button onclick="openStageInfo()" class="px-4 py-3 flex items-center justify-between w-full btn-press">
+      <span class="text-[15px] text-ios-blue">무대 정보</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#D1D1D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="px-4 py-3 flex items-center justify-between w-full btn-press">
+      <span class="text-[15px] text-ios-blue">채널 맵 내보내기 (PDF)</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#D1D1D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <div class="card mb-6 px-4 py-3 text-center">
+    <p class="text-[12px] text-ios-secondary">테크라이더 매니저 · SUMMER GROOVE 2026<br/>Made with ♪ for live music</p>
+  </div>
+</div>
+
+</main><!-- /main -->
+
+<!-- ===== BOTTOM TAB BAR ===== -->
+<nav class="nav-blur fixed bottom-0 left-0 right-0 z-50 border-t border-ios-gray2" style="padding-bottom: env(safe-area-inset-bottom)">
+  <div class="max-w-4xl mx-auto flex">
+    <button onclick="showScreen('home')" id="tab-home" class="flex-1 flex flex-col items-center py-2 gap-0.5 text-ios-blue">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 12L12 3l9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 21V12h6v9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="text-[10px] font-medium">홈</span>
+    </button>
+    <button onclick="showScreen('concert-info')" id="tab-concert-info" class="flex-1 flex flex-col items-center py-2 gap-0.5 text-ios-secondary">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 12h6M9 16h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span class="text-[10px] font-medium">공연정보</span>
+    </button>
+    <button onclick="showScreen('setlist')" id="tab-setlist" class="flex-1 flex flex-col items-center py-2 gap-0.5 text-ios-secondary">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 18V5l12-2v13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
+      <span class="text-[10px] font-medium">셋리스트</span>
+    </button>
+    <button onclick="showScreen('tech-rider')" id="tab-tech-rider" class="flex-1 flex flex-col items-center py-2 gap-0.5 text-ios-secondary">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span class="text-[10px] font-medium">테크라이더</span>
+    </button>
+  </div>
+</nav>
+
+<script>
+// ===== DATA =====
+const channels = [
+  {ch:1,  src:'킥 드럼 (Inside)',    mic:'Beta 52A',   conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:2,  src:'킥 드럼 (Outside)',   mic:'MD421',      conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:3,  src:'스네어 (Top)',        mic:'SM57',       conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:4,  src:'스네어 (Bottom)',     mic:'SM57',       conn:'XLR',  di:false, band:'all',    note:'옵션'},
+  {ch:5,  src:'하이햇',             mic:'C451B',      conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:6,  src:'탐탐 1',             mic:'MD421',      conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:7,  src:'탐탐 2',             mic:'MD421',      conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:8,  src:'오버헤드 L',          mic:'C414',       conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:9,  src:'오버헤드 R',          mic:'C414',       conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:10, src:'베이스 DI',           mic:'Radial J48', conn:'DI',   di:true,  band:'rednoise',note:'자체지참'},
+  {ch:11, src:'베이스 앰프',         mic:'MD421',      conn:'XLR',  di:false, band:'rednoise',note:''},
+  {ch:12, src:'기타 L 앰프',         mic:'SM57',       conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:13, src:'기타 R 앰프',         mic:'SM57',       conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:14, src:'키보드 L',            mic:'—',          conn:'DI',   di:true,  band:'bluemoon,nightfall', note:'스테레오'},
+  {ch:15, src:'키보드 R',            mic:'—',          conn:'DI',   di:true,  band:'bluemoon,nightfall', note:'스테레오'},
+  {ch:16, src:'어쿠스틱 기타 1',     mic:'—',          conn:'DI',   di:true,  band:'greenwave', note:'대여'},
+  {ch:17, src:'어쿠스틱 기타 2',     mic:'—',          conn:'DI',   di:true,  band:'greenwave', note:'대여'},
+  {ch:18, src:'바이올린',            mic:'픽업 DI',    conn:'DI',   di:true,  band:'greenwave', note:'미확인'},
+  {ch:19, src:'보컬 1',              mic:'SM58',       conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:20, src:'보컬 2',              mic:'SM58',       conn:'XLR',  di:false, band:'all',    note:''},
+  {ch:21, src:'보컬 3',              mic:'SM58',       conn:'XLR',  di:false, band:'greenwave', note:'3인 구성'},
+  {ch:22, src:'Alto Sax',            mic:'SM58',       conn:'XLR',  di:false, band:'bluemoon', note:'스탠드 요청'},
+  {ch:23, src:'트럼펫',              mic:'SM58',       conn:'XLR',  di:false, band:'bluemoon', note:'스탠드 요청'},
+];
+
+// ===== 팀(밴드) 정의 =====
+const TECH_BANDS = ['bluemoon', 'rednoise', 'greenwave', 'nightfall'];
+const BAND_NAMES = { bluemoon: '블루문', rednoise: '레드 노이즈', greenwave: '그린 웨이브', nightfall: '나이트폴' };
+const COLOR = { orange: '#FF9500', purple: '#AF52DE', teal: '#5AC8FA', green: '#34C759', blue: '#007AFF', gray: '#8E8E93' };
+
+// 팀별 무대 배치도 — 팀 구성(comp)에서 buildAllStagePlots()로 자동 생성됨
+const stagePlots = {};
+let stageHidden = {}; // { teamId: { elementId: true } } 숨김 처리된 요소
+
+// 악기 아이콘 — 꽉 찬(solid) 실루엣 (fill=currentColor → 요소 색상 상속)
+const ICONS = {
+  mic: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0h-2.2a3.8 3.8 0 0 1-7.6 0z"/><rect x="11" y="17" width="2" height="4"/><rect x="7.5" y="20.5" width="9" height="2.2" rx="1.1"/></svg>',
+  drums: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><ellipse cx="4.7" cy="6" rx="3.6" ry="1.15"/><ellipse cx="19.3" cy="6" rx="3.6" ry="1.15"/><rect x="4.2" y="6" width="1" height="6.8"/><rect x="18.8" y="6" width="1" height="6.8"/><path fill-rule="evenodd" d="M12 9a6.1 6.1 0 1 1 0 12.2A6.1 6.1 0 0 1 12 9zm0 3.3a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6z"/><rect x="6.3" y="19.8" width="1.4" height="3.4" rx=".7" transform="rotate(18 7 21.5)"/><rect x="16.3" y="19.8" width="1.4" height="3.4" rx=".7" transform="rotate(-18 17 21.5)"/></svg>',
+  guitar: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><circle cx="7.5" cy="16.5" r="5.1"/><path d="M10.6 13.4 18 6l1.9 1.9-7.4 7.4z"/><path d="M17.3 4.7 20.8 1.2l2 2-3.5 3.5z"/></svg>',
+  acoustic: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M7.5 11.4a5.1 5.1 0 1 1 0 10.2 5.1 5.1 0 0 1 0-10.2zm0 3.1a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/><path d="M10.6 13.4 18 6l1.9 1.9-7.4 7.4z"/><path d="M17.3 4.7 20.8 1.2l2 2-3.5 3.5z"/></svg>',
+  keys: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M3 6h18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm3.5 5.5h-1V18h1v-6.5zm4 0h-1V18h1v-6.5zm4 0h-1V18h1v-6.5zm4 0h-1V18h1v-6.5z"/></svg>',
+  brass: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="10.6" width="12" height="2.8" rx="1.2"/><path d="M13 7.8c4.6 0 7.8 1.9 7.8 4.2S17.6 16.2 13 16.2z"/><rect x="2" y="9.3" width="2.6" height="5.4" rx="1.2"/><rect x="6.8" y="13" width="2" height="3.8" rx=".9"/><rect x="10.3" y="13" width="2" height="3.8" rx=".9"/></svg>',
+  note: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><rect x="8.6" y="4.5" width="1.7" height="13" rx=".5"/><rect x="18.7" y="2.8" width="1.7" height="13" rx=".5"/><path d="M8.6 4.5 20.4 2v3.2L8.6 7.7z"/><ellipse cx="6.2" cy="17.6" rx="3.4" ry="2.7"/><ellipse cx="16.3" cy="15.9" rx="3.4" ry="2.7"/></svg>',
+  speaker: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm5 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 5a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2z"/></svg>',
+  console: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm2 3v1.5h14V8H5zm0 4v1.5h14V12H5z"/></svg>',
+  power: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 13.5h6L9 22l9-12h-6z"/></svg>',
+  box: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1zm2.6 3a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zm4.4 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zm4.4 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z"/></svg>',
+  riser: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><path d="M4 8h16l3 6H1z"/><rect x="3.5" y="14" width="2" height="5" rx=".5"/><rect x="18.5" y="14" width="2" height="5" rx=".5"/></svg>',
+  wedge: '<svg class="si" viewBox="0 0 24 24" fill="currentColor"><path d="M2.5 16.5 21.5 8.5 21.5 14 2.5 21Z"/></svg>',
+};
+
+// 요소 id → 아이콘 종류
+const ICON_BY_ID = {
+  drums: 'drums', gtrL: 'guitar', gtrR: 'guitar', bass: 'guitar',
+  keys: 'keys', brass: 'brass', acg1: 'acoustic', acg2: 'acoustic',
+  violin: 'acoustic', v1: 'mic', v2: 'mic', v3: 'mic',
+};
+
+let currentTechBand = 'bluemoon';
+let stageEditing = false;
+
+// ===== NAV STATE =====
+let currentScreen = 'home';
+let screenHistory = [];
+
+function showScreen(id) {
+  if (id === currentScreen) return;
+  screenHistory.push(currentScreen);
+  _activateScreen(id);
+}
+
+function goBack() {
+  if (screenHistory.length === 0) return;
+  const prev = screenHistory.pop();
+  _activateScreen(prev);
+}
+
+function _activateScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById('screen-' + id);
+  if (!el) return;
+  el.classList.add('active');
+  currentScreen = id;
+  // 테크라이더 진입 시 무대 배치도를 최신 팀 구성으로 다시 그림 (커스텀 악기 반영)
+  if (id === 'tech-rider' && typeof renderStagePlot === 'function') {
+    renderStagePlot(currentTechBand); renderChannels(currentTechBand);
+    moveSeg(document.getElementById('techBandTabs')); moveSeg(document.getElementById('techSubTabs'));
+  }
+  // 셋리스트 진입 시 팀 정보의 Set List를 최신으로 반영
+  if (id === 'setlist' && typeof renderSetlist === 'function') renderSetlist();
+  updateNav(id);
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function updateNav(id) {
+  const titles = {
+    'home': '🎸 테크라이더',
+    'concert-info': '공연 정보',
+    'edit-concert': '공연 정보 수정',
+    'team-info': '팀 정보',
+    'stage-info': '무대 정보',
+    'setlist': 'Set List',
+    'tech-rider': '테크라이더',
+    'settings': '설정'
+  };
+  document.getElementById('navTitle').textContent = titles[id] || '';
+
+  const backBtn = document.getElementById('backBtn');
+  const backLabel = document.getElementById('backLabel');
+  if (id === 'home') {
+    backBtn.classList.add('hidden');
+    backBtn.classList.remove('flex');
+  } else {
+    backBtn.classList.remove('hidden');
+    backBtn.classList.add('flex');
+    const prev = screenHistory[screenHistory.length - 1];
+    const prevTitles = {'home':'홈','concert-info':'공연정보','edit-concert':'정보수정','team-info':'팀정보','stage-info':'무대정보','setlist':'셋리스트','tech-rider':'테크라이더','settings':'설정'};
+    backLabel.textContent = prevTitles[prev] || '뒤로';
+  }
+
+  // Tab bar active state
+  const tabs = ['home','concert-info','setlist','tech-rider'];
+  tabs.forEach(t => {
+    const el = document.getElementById('tab-' + t);
+    if (!el) return;
+    if (t === id) {
+      el.classList.add('text-ios-blue');
+      el.classList.remove('text-ios-secondary');
+    } else {
+      el.classList.remove('text-ios-blue');
+      el.classList.add('text-ios-secondary');
+    }
+  });
+}
+
+// ===== TOGGLES =====
+function toggleDetail(id) {
+  const el = document.getElementById(id);
+  const bandNum = id.replace('band','').replace('-detail','');
+  const arrow = document.getElementById('band'+bandNum+'-arrow');
+  if (!el) return;
+  const isHidden = el.classList.contains('hidden');
+  el.classList.toggle('hidden');
+  if (arrow) arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+// ===== SETLIST (팀 정보 Set List 연동) =====
+let currentSetlistIdx = 0;
+function switchSetlistBand(idx) {
+  currentSetlistIdx = idx;
+  const cont = document.getElementById('setlistTabs');
+  cont.querySelectorAll('button').forEach((b, i) => {
+    b.classList.toggle('text-ios-blue', i === idx);
+    b.classList.toggle('text-ios-secondary', i !== idx);
+  });
+  moveSeg(cont);          // 슬라이드 이동
+  renderSetlistBody();
+}
+function renderSetlist() {
+  const tabsHost = document.getElementById('setlistTabs');
+  if (!tabsHost) return;
+  if (currentSetlistIdx >= teams.length) currentSetlistIdx = 0;
+  tabsHost.innerHTML = teams.map((t, i) => {
+    const active = i === currentSetlistIdx;
+    return `<button onclick="switchSetlistBand(${i})" class="flex-shrink-0 px-4 py-1.5 rounded-[8px] text-[13px] font-medium transition-all whitespace-nowrap ${active ? 'text-ios-blue' : 'text-ios-secondary'}">${esc(t.name) || '(이름 없음)'}</button>`;
+  }).join('');
+  moveSeg(tabsHost);
+  renderSetlistBody();
+}
+function renderSetlistBody() {
+  const body = document.getElementById('setlistBody');
+  if (!body) return;
+  const t = teams[currentSetlistIdx];
+  if (!t) { body.innerHTML = ''; return; }
+  const songs = t.setlist || [];
+  const rows = songs.length ? songs.map((s, i) => `
+    <div class="px-4 py-3 flex items-center gap-3">
+      <div class="w-7 h-7 rounded-full bg-ios-blue flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${i + 1}</div>
+      <div class="flex-1 min-w-0">
+        <div class="text-[14px] font-medium text-ios-label">${esc(s.title) || '(제목 없음)'}</div>
+        <div class="text-xs text-ios-secondary flex items-center gap-1.5 flex-wrap">${esc(s.artist) || ''}${s.note ? `<span class="badge bg-ios-orange bg-opacity-10 text-ios-orange">${esc(s.note)}</span>` : ''}</div>
+      </div>
+    </div>`).join('') : '<div class="px-4 py-8 text-center text-[13px] text-ios-secondary">등록된 곡이 없습니다.<br>설정 → 밴드 추가/수정 → Set List 탭에서 추가하세요.</div>';
+  body.innerHTML = `
+    <div class="setlist-anim">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-[18px] font-bold text-ios-label">${esc(t.name)}</div>
+        <span class="badge bg-ios-blue bg-opacity-10 text-ios-blue">${songs.length}곡</span>
+      </div>
+      <div class="card divide-y divide-ios-gray2 mb-6">${rows}</div>
+    </div>`;
+}
+
+// ===== TECH RIDER TABS =====
+function switchTechTab(key) {
+  ['stage','input','output'].forEach(k => {
+    const tab = document.getElementById('techtab-' + k);
+    const panel = document.getElementById('techpanel-' + k);
+    if (k === key) {
+      tab.classList.add('bg-white', 'text-ios-blue', 'shadow-ios-sm');
+      tab.classList.remove('text-ios-secondary');
+      panel.classList.remove('hidden');
+    } else {
+      tab.classList.remove('bg-white', 'text-ios-blue', 'shadow-ios-sm');
+      tab.classList.add('text-ios-secondary');
+      panel.classList.add('hidden');
+    }
+  });
+  moveSeg(document.getElementById('techSubTabs'));
+}
+
+// ===== CHANNEL LIST RENDER =====
+// 인풋 채널 맵 — 팀 구성(악기) 기반 + 편집형(마이크·DI/연결/비고)
+let inputMap = {}; // { teamId: { elementId: { mic, di, conn:{xlr,ts,trs,combo}, note } } }
+function loadInputMap() { try { const raw = localStorage.getItem('inputMap'); if (raw) { const o = JSON.parse(raw); if (o && typeof o === 'object') inputMap = o; } } catch (e) {} }
+function persistInputMap() { try { localStorage.setItem('inputMap', JSON.stringify(inputMap)); } catch (e) {} }
+function defaultInputFor(id) {
+  const key = id.split('-')[0];
+  const isDI = ['bass', 'keys', 'acoustic', 'violin'].includes(key);
+  return { mic: !isDI, di: isDI, conn: { xlr: true, ts: false, trs: false, combo: false }, note: '' };
+}
+function getInput(teamId, id) {
+  if (!inputMap[teamId]) inputMap[teamId] = {};
+  if (!inputMap[teamId][id]) inputMap[teamId][id] = defaultInputFor(id);
+  if (!inputMap[teamId][id].conn) inputMap[teamId][id].conn = { xlr: false, ts: false, trs: false, combo: false };
+  return inputMap[teamId][id];
+}
+function setInput(teamId, id, field, val) { getInput(teamId, id)[field] = val; persistInputMap(); }
+function setInputConn(teamId, id, ctype, val) { getInput(teamId, id).conn[ctype] = val; persistInputMap(); }
+
+let inputEditing = false;
+const CONN_LABEL = { xlr: 'XLR', ts: 'TS', trs: 'TRS', combo: 'Combo' };
+
+function renderChannels(bandKey) {
+  const list = document.getElementById('channelList');
+  if (!list) return;
+  const els = stagePlots[bandKey] || [];
+  if (!els.length) {
+    list.innerHTML = '<div class="px-3 py-6 text-center text-[13px] text-ios-secondary">팀 구성이 없습니다.<br>설정 → 밴드 추가/수정에서 악기를 추가하세요.</div>';
+    return;
+  }
+  list.innerHTML = els.map((e, i) => inputEditing ? inputEditRow(bandKey, e, i) : inputViewRow(bandKey, e, i)).join('');
+}
+
+// 보기 모드 — 체크된 정보만 배지로 표시
+function inputViewRow(bandKey, e, i) {
+  const it = getInput(bandKey, e.id);
+  const c = it.conn || {};
+  const badges = [];
+  if (it.mic) badges.push('<span class="badge bg-ios-blue bg-opacity-10 text-ios-blue">마이크</span>');
+  if (it.di) badges.push('<span class="badge bg-ios-purple bg-opacity-10 text-ios-purple">DI</span>');
+  ['xlr', 'ts', 'trs', 'combo'].forEach(k => { if (c[k]) badges.push(`<span class="badge bg-ios-teal bg-opacity-10 text-ios-teal">${CONN_LABEL[k]}</span>`); });
+  const badgeHtml = badges.length ? badges.join(' ') : '<span class="text-[11px] text-ios-gray3">미설정</span>';
+  const noteHtml = it.note ? `<div class="text-[11px] text-ios-secondary mt-1">📝 ${esc(it.note)}</div>` : '';
+  return `<div class="px-3 py-2.5 border-b border-ios-gray2 last:border-0 flex items-start gap-2.5">
+    <span class="text-[12px] font-bold text-ios-blue flex-shrink-0 text-center pt-0.5" style="width:24px">${i + 1}</span>
+    <div class="flex-1 min-w-0">
+      <div class="text-[14px] font-medium text-ios-label">${esc(e.label)}</div>
+      <div class="flex flex-wrap items-center gap-1 mt-1">${badgeHtml}</div>
+      ${noteHtml}
+    </div>
+  </div>`;
+}
+
+// 수정 모드 — 체크박스 + 비고 입력
+function inputEditRow(bandKey, e, i) {
+  const it = getInput(bandKey, e.id);
+  const c = it.conn || {};
+  const chk = (on) => on ? 'checked' : '';
+  return `<div class="px-3 py-3 border-b border-ios-gray2 last:border-0">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="text-[12px] font-bold text-ios-blue flex-shrink-0 text-center" style="width:26px">${i + 1}</span>
+        <span class="text-[14px] font-medium text-ios-label flex-1 min-w-0 truncate">${esc(e.label)}</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5" style="padding-left:34px">
+        <span class="text-[11px] text-ios-secondary">마이크/DI</span>
+        <label class="inp-chk"><input type="checkbox" ${chk(it.mic)} onchange="setInput('${bandKey}','${e.id}','mic',this.checked)">마이크</label>
+        <label class="inp-chk"><input type="checkbox" ${chk(it.di)} onchange="setInput('${bandKey}','${e.id}','di',this.checked)">DI</label>
+        <span class="text-ios-gray3">·</span>
+        <span class="text-[11px] text-ios-secondary">연결</span>
+        <label class="inp-chk"><input type="checkbox" ${chk(c.xlr)} onchange="setInputConn('${bandKey}','${e.id}','xlr',this.checked)">XLR</label>
+        <label class="inp-chk"><input type="checkbox" ${chk(c.ts)} onchange="setInputConn('${bandKey}','${e.id}','ts',this.checked)">TS</label>
+        <label class="inp-chk"><input type="checkbox" ${chk(c.trs)} onchange="setInputConn('${bandKey}','${e.id}','trs',this.checked)">TRS</label>
+        <label class="inp-chk"><input type="checkbox" ${chk(c.combo)} onchange="setInputConn('${bandKey}','${e.id}','combo',this.checked)">Combo</label>
+      </div>
+      <div style="padding-left:34px" class="mt-2">
+        <input class="ef-input" value="${esc(it.note)}" placeholder="비고 (직접 입력)" oninput="setInput('${bandKey}','${e.id}','note',this.value)">
+      </div>
+    </div>`;
+}
+
+// 인풋 수정 ↔ 저장 토글
+function toggleInputEdit() {
+  inputEditing = !inputEditing;
+  document.getElementById('inputEditIcon').classList.toggle('hidden', inputEditing);
+  document.getElementById('inputSaveIcon').classList.toggle('hidden', !inputEditing);
+  const hint = document.getElementById('inputHint');
+  if (hint) hint.textContent = inputEditing
+    ? '마이크/DI · 연결 · 비고를 입력한 뒤 저장(💾) 버튼을 누르세요.'
+    : '저장된 인풋 채널 맵입니다. 수정하려면 ✎ 버튼을 누르세요.';
+  renderChannels(currentTechBand);
+  if (!inputEditing) { persistInputMap(); showToast('인풋 채널 맵을 저장했어요'); }
+}
+
+// ===== 팀(밴드)별 테크라이더 전환 =====
+function switchTechBand(idx) {
+  currentTechBand = TECH_BANDS[idx];
+  for (let i = 0; i < 4; i++) {
+    const tab = document.getElementById('techbandtab-' + i);
+    if (!tab) continue;
+    if (i === idx) {
+      tab.classList.add('bg-white', 'text-ios-blue', 'shadow-ios-sm');
+      tab.classList.remove('text-ios-secondary');
+    } else {
+      tab.classList.remove('bg-white', 'text-ios-blue', 'shadow-ios-sm');
+      tab.classList.add('text-ios-secondary');
+    }
+  }
+  document.querySelectorAll('.tech-band-name').forEach(n => n.textContent = BAND_NAMES[currentTechBand]);
+  renderStagePlot(currentTechBand);
+  renderChannels(currentTechBand);
+  moveSeg(document.getElementById('techBandTabs'));
+  reanimate(document.querySelector('#screen-tech-rider .techpanel:not(.hidden)')); // 팀 전환 시 콘텐츠 슬라이드
+}
+
+// CSS 애니메이션 재생 (요소 새로고침 효과)
+function reanimate(el) {
+  if (!el) return;
+  el.style.animation = 'none';
+  void el.offsetWidth; // reflow
+  el.style.animation = '';
+}
+
+// 세그먼트 컨트롤 슬라이딩 인디케이터를 활성 버튼 위치로 이동
+function moveSeg(cont) {
+  if (!cont) return;
+  const btn = cont.querySelector('button.text-ios-blue');
+  let ind = cont.querySelector(':scope > .seg-ind');
+  const isNew = !ind;
+  if (isNew) { ind = document.createElement('div'); ind.className = 'seg-ind'; cont.insertBefore(ind, cont.firstChild); }
+  if (!btn || !btn.offsetWidth) { ind.style.opacity = '0'; return; }
+  const apply = () => {
+    ind.style.width = btn.offsetWidth + 'px';
+    ind.style.height = btn.offsetHeight + 'px';
+    ind.style.transform = `translate(${btn.offsetLeft}px, ${btn.offsetTop}px)`;
+    ind.style.opacity = '1';
+  };
+  if (isNew) { ind.style.transition = 'none'; apply(); void ind.offsetWidth; ind.style.transition = ''; }
+  else apply();
+}
+
+// ===== 무대 배치도 렌더링 =====
+function hexToRgba(hex, a) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+function renderStagePlot(bandKey) {
+  const host = document.getElementById('stageElements');
+  if (!host) return;
+  const els = stagePlots[bandKey] || [];
+  const visible = els.filter(e => !e.hidden);   // 체크 해제된 요소는 숨김
+  host.innerHTML = visible.map(e => {
+    const accent = COLOR[e.color] || '#007AFF';
+    const style = `left:${e.x}%; top:${e.y}%; color:${accent}; --accent:${accent};`;
+    const iconKey = e.icon || ICON_BY_ID[e.id] || 'mic';
+    return `<div class="stage-el" data-id="${e.id}" style="${style}">
+      <div class="stage-el-icon">${ICONS[iconKey] || ''}</div>
+      <div class="stage-el-label">${esc(e.label)}</div>
+    </div>`;
+  }).join('');
+  host.querySelectorAll('.stage-el').forEach(el => attachDrag(el, els));
+  renderStageHouseBg();   // 무대 정보의 하우스 배치를 배경으로 표시
+  renderStageLegend(bandKey);
+}
+
+// 무대 배치도 범례 — 각 요소에 표시/숨김 체크박스
+function renderStageLegend(bandKey) {
+  const host = document.getElementById('stageLegend');
+  if (!host) return;
+  const els = stagePlots[bandKey] || [];
+  if (!els.length) {
+    host.innerHTML = '<span class="text-[12px] text-ios-secondary">팀 정보에서 구성을 입력하면 표시됩니다.</span>';
+    return;
+  }
+  host.innerHTML = els.map(e => {
+    const hex = COLOR[e.color] || '#8E8E93';
+    const round = (e.icon === 'mic');
+    // 체크박스는 수정 모드일 때만 표시 (저장 시 사라짐)
+    const cb = stageEditing
+      ? `<input type="checkbox" ${e.hidden ? '' : 'checked'} onchange="toggleStageEl('${bandKey}','${e.id}',this.checked)" style="width:16px;height:16px;accent-color:#007AFF;flex-shrink:0;cursor:pointer">`
+      : '';
+    return `<div class="flex items-center gap-2 ${e.hidden ? 'opacity-40' : ''}">
+      <div class="w-3 h-3 ${round ? 'rounded-full' : 'rounded-sm'} flex-shrink-0" style="background:${hex};opacity:.65"></div>
+      <span class="text-ios-secondary flex-1 min-w-0 truncate">${esc(e.label)}</span>
+      ${cb}
+    </div>`;
+  }).join('');
+}
+
+// 범례 체크박스 토글 → 무대 아이콘 표시/숨김
+function toggleStageEl(bandKey, id, checked) {
+  const el = (stagePlots[bandKey] || []).find(d => d.id === id);
+  if (el) el.hidden = !checked;
+  if (!stageHidden[bandKey]) stageHidden[bandKey] = {};
+  if (checked) delete stageHidden[bandKey][id]; else stageHidden[bandKey][id] = true;
+  persistStageHidden();
+  renderStagePlot(bandKey);
+}
+
+// ===== 드래그(포인터) 핸들러 =====
+function attachDrag(el, arr) {
+  el.addEventListener('pointerdown', (ev) => {
+    const canvas = el.closest('.stage-canvas');
+    if (!canvas || !canvas.classList.contains('editing')) return; // 편집 모드일 때만 드래그
+    ev.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const data = (arr || []).find(d => d.id === el.dataset.id);
+    if (!data) return;
+    const startX = ev.clientX, startY = ev.clientY;
+    const origX = data.x, origY = data.y;
+    const elWpct = (el.offsetWidth / rect.width) * 100;
+    const elHpct = (el.offsetHeight / rect.height) * 100;
+    el.setPointerCapture(ev.pointerId);
+    el.classList.add('dragging');
+
+    const move = (e) => {
+      const dx = ((e.clientX - startX) / rect.width) * 100;
+      const dy = ((e.clientY - startY) / rect.height) * 100;
+      let nx = Math.max(0, Math.min(100 - elWpct, origX + dx));
+      let ny = Math.max(0, Math.min(100 - elHpct, origY + dy));
+      data.x = nx; data.y = ny;
+      el.style.left = nx + '%';
+      el.style.top = ny + '%';
+    };
+    const up = () => {
+      el.classList.remove('dragging');
+      try { el.releasePointerCapture(ev.pointerId); } catch (_) {}
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  });
+}
+
+// ===== 수정 ↔ 저장 토글 =====
+function toggleStageEdit() {
+  stageEditing = !stageEditing;
+  const canvas = document.getElementById('stageCanvas');
+  canvas.classList.toggle('editing', stageEditing);
+  document.getElementById('stageEditIcon').classList.toggle('hidden', stageEditing);
+  document.getElementById('stageSaveIcon').classList.toggle('hidden', !stageEditing);
+  document.getElementById('stageHint').classList.toggle('hidden', !stageEditing);
+  renderStageLegend(currentTechBand); // 체크박스 표시/숨김 갱신
+  if (!stageEditing) {
+    saveStagePlots();
+    showToast('무대 배치도를 저장했어요');
+  }
+}
+
+// ===== 저장 / 불러오기 (localStorage) =====
+function saveStagePlots() {
+  try { localStorage.setItem('stagePlots', JSON.stringify(stagePlots)); } catch (e) {}
+}
+function loadStagePlots() {
+  try {
+    const raw = localStorage.getItem('stagePlots');
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    Object.keys(stagePlots).forEach(band => {
+      if (!saved[band]) return;
+      stagePlots[band].forEach(el => {
+        const s = saved[band].find(d => d.id === el.id);
+        if (s && typeof s.x === 'number' && typeof s.y === 'number') { el.x = s.x; el.y = s.y; }
+      });
+    });
+  } catch (e) {}
+}
+
+function loadStageHidden() { try { const raw = localStorage.getItem('stageHidden'); if (raw) { const o = JSON.parse(raw); if (o && typeof o === 'object') stageHidden = o; } } catch (e) {} }
+function persistStageHidden() { try { localStorage.setItem('stageHidden', JSON.stringify(stageHidden)); } catch (e) {} }
+
+// ===== 토스트 =====
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.className = 'toast show';
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => { t.className = 'toast'; }, 1800);
+}
+
+// ===== THEME (LIGHT / DARK) =====
+function applyThemeUI(isDark) {
+  document.getElementById('iconMoon').classList.toggle('hidden', isDark);
+  document.getElementById('iconSun').classList.toggle('hidden', !isDark);
+  const meta = document.getElementById('themeColorMeta');
+  if (meta) meta.setAttribute('content', isDark ? '#1C1C1E' : '#F2F2F7');
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  applyThemeUI(isDark);
+}
+
+// 초기 아이콘/상태바 동기화 (다크 클래스는 <head> 인라인 스크립트에서 이미 적용됨)
+applyThemeUI(document.documentElement.classList.contains('dark'));
+
+// OS 테마 변경 시, 사용자가 수동 설정을 안 했다면 따라감
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (!localStorage.getItem('theme')) {
+      document.documentElement.classList.toggle('dark', e.matches);
+      applyThemeUI(e.matches);
+    }
+  });
+}
+
+// ===== PWA SERVICE WORKER =====
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      console.log('[SW] registered:', reg.scope);
+    }).catch(err => {
+      console.warn('[SW] registration failed:', err);
+    });
+  });
+}
+
+// ===== 공연 정보 (데이터) =====
+const DEFAULT_CONCERT = {
+  name: 'SUMMER GROOVE 2026',
+  subtitle: '연합 밴드 페스티벌',
+  date: '2026-06-18',
+  timeStart: '18:00',
+  timeEnd: '22:30',
+  dateText: '2026년 6월 18일 (목) · 18:00~22:30',
+  dday: 'D-12',
+  venue: '홍대 V-HALL 대공연장',
+  capacity: '약 300명',
+  ticket: '무료입장',
+  teams: '4개 밴드',
+  members: '23명',
+  progress: 75,
+  venueAddress: '서울 마포구 와우산로 ○○○ 지하 1층',
+  admission: '17:30',
+  carryIn: { food: true, drink: true, alcohol: false, etc: false, etcLabel: '' },
+  parking: { available: true, freeHours: 2, allDay: false },
+  timetable: [
+    { start:'17:00', end:'18:00', title:'입장 및 리셉션', desc:'관객 입장 · 사운드 체크 마무리', accent:'blue' },
+    { start:'18:00', end:'18:10', title:'공연 시작 · Opening', desc:'사회자 인사 · 1부 시작', accent:'blue' },
+    { start:'18:10', end:'18:35', title:'BAND 1 · 블루문', desc:'4곡', accent:'orange', badge:'브라스' },
+    { start:'18:40', end:'19:05', title:'BAND 2 · 레드 노이즈', desc:'4곡', accent:'orange' },
+    { start:'19:10', end:'19:30', title:'인터미션', desc:'무대 세팅 전환', accent:'muted' },
+    { start:'19:30', end:'20:00', title:'BAND 3 · 그린 웨이브', desc:'5곡', accent:'orange', badge:'어쿠스틱' },
+    { start:'20:10', end:'20:50', title:'BAND 4 · 나이트폴', desc:'6곡', accent:'orange', badge:'헤드라이너' },
+    { start:'21:00', end:'21:25', title:'피날레 & 합동 공연', desc:'전팀 합동 · 1곡 · 앙코르 포함', accent:'blue' },
+    { start:'21:30', end:'', title:'공연 종료 · 정리', desc:'', accent:'muted' },
+  ],
+  poster: null, // 데이터 URL(JPEG) 또는 null
+};
+
+let concertInfo = JSON.parse(JSON.stringify(DEFAULT_CONCERT));
+let posterDraft = null; // 편집 중 임시 포스터
+let ttDraft = [];       // 편집 중 임시 타임테이블
+
+const TT_ACCENT = { blue: 'text-ios-blue', orange: 'text-ios-orange', muted: 'text-ios-secondary' };
+const TT_BADGE = {
+  '브라스': 'bg-ios-blue bg-opacity-10 text-ios-blue',
+  '어쿠스틱': 'bg-ios-purple bg-opacity-10 text-ios-purple',
+  '헤드라이너': 'bg-ios-red bg-opacity-10 text-ios-red',
+};
+
+function saveConcertInfo() {
+  try { localStorage.setItem('concertInfo', JSON.stringify(concertInfo)); return true; }
+  catch (e) { return false; }
+}
+function loadConcertInfo() {
+  try {
+    const raw = localStorage.getItem('concertInfo');
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    concertInfo = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONCERT)), saved);
+    // 구버전 데이터 호환 (장소 필드 구조 변경)
+    if (!concertInfo.carryIn || typeof concertInfo.carryIn !== 'object') concertInfo.carryIn = JSON.parse(JSON.stringify(DEFAULT_CONCERT.carryIn));
+    if (!concertInfo.parking || typeof concertInfo.parking !== 'object') concertInfo.parking = JSON.parse(JSON.stringify(DEFAULT_CONCERT.parking));
+    if (typeof concertInfo.admission !== 'string') concertInfo.admission = DEFAULT_CONCERT.admission;
+  } catch (e) {}
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+}
+
+// 날짜(YYYY-MM-DD) + 시간 → 표시용 문자열 "2026년 6월 18일 (목) · 18:00~22:30"
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+function composeDateText(dateISO, ts, te) {
+  let datePart = '';
+  if (dateISO) {
+    const [y, m, d] = dateISO.split('-').map(Number);
+    if (y && m && d) {
+      const dow = WEEKDAYS[new Date(y, m - 1, d).getDay()];
+      datePart = `${y}년 ${m}월 ${d}일 (${dow})`;
+    }
+  }
+  const timePart = (ts && te) ? `${ts}~${te}` : (ts || te || '');
+  if (datePart && timePart) return `${datePart} · ${timePart}`;
+  return datePart || timePart || '';
+}
+
+// 공연 날짜 기준 D-Day 자동 계산 (오늘과 비교)
+function computeDday(dateISO) {
+  if (!dateISO) return '';
+  const [y, m, d] = dateISO.split('-').map(Number);
+  if (!(y && m && d)) return '';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const target = new Date(y, m - 1, d); target.setHours(0, 0, 0, 0);
+  const diff = Math.round((target - today) / 86400000);
+  if (diff > 0) return 'D-' + diff;
+  if (diff === 0) return 'D-DAY';
+  return 'D+' + Math.abs(diff);
+}
+
+// 입력 완성도 기반 준비 진행률(%) 자동 계산
+function computeProgress(c) {
+  const checks = [
+    !!c.name,
+    !!c.date,
+    !!(c.timeStart && c.timeEnd),
+    !!c.venue,
+    !!c.venueAddress,
+    !!c.capacity,
+    !!c.ticket,
+    !!c.teams,
+    !!c.members,
+    !!c.poster,
+    !!(c.timetable && c.timetable.length >= 3),
+    !!c.admission,
+  ];
+  const done = checks.filter(Boolean).length;
+  return Math.round(done / checks.length * 100);
+}
+
+// ===== 홈 히어로 렌더링 =====
+function renderHome() {
+  const c = concertInfo;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('heroDday', computeDday(c.date) || c.dday || '');
+  set('heroName', c.name);
+  set('heroSubtitle', c.subtitle);
+  set('heroDate', c.dateText);
+  set('heroVenue', c.venue);
+  set('heroTeams', c.teams);
+  set('heroMembers', c.members);
+  const prog = computeProgress(c);
+  set('heroProgressLabel', prog + '%');
+  const fill = document.getElementById('heroProgressFill'); if (fill) fill.style.width = prog + '%';
+  // 부제 없으면 윗줄 숨김
+  const subWrap = document.getElementById('heroSubtitleWrap');
+  if (subWrap) subWrap.style.display = c.subtitle ? '' : 'none';
+  // 포스터 배경 (있으면 중앙 캡쳐 + 투명도 50%, 없으면 기존 형태)
+  const poster = document.getElementById('heroPoster');
+  const deco = document.getElementById('heroDeco');
+  if (c.poster) {
+    poster.style.backgroundImage = `url("${c.poster}")`;
+    poster.classList.remove('hidden');
+    if (deco) deco.classList.add('hidden');
+  } else {
+    poster.style.backgroundImage = '';
+    poster.classList.add('hidden');
+    if (deco) deco.classList.remove('hidden');
+  }
+}
+
+// ===== 공연 정보 화면 렌더링 =====
+function renderConcertInfo() {
+  const c = concertInfo;
+  const details = document.getElementById('ciDetails');
+  if (details) {
+    const row = (k, v, blue) => `<div class="px-4 py-3 flex justify-between items-center gap-4">
+      <span class="text-[14px] text-ios-secondary flex-shrink-0">${k}</span>
+      <span class="text-[14px] font-medium ${blue ? 'text-ios-blue' : 'text-ios-label'} text-right">${esc(v)}</span></div>`;
+    details.innerHTML = row('공연명', c.name) + row('일시', c.dateText) + row('장소', c.venue)
+      + row('수용 인원', c.capacity) + row('티켓', c.ticket, true);
+  }
+  const tt = document.getElementById('ciTimetable');
+  if (tt) {
+    const rowsHtml = (c.timetable || []).map(r => {
+      const accent = TT_ACCENT[r.accent] || 'text-ios-blue';
+      const titleColor = r.accent === 'muted' ? 'text-ios-secondary' : 'text-ios-label';
+      const badge = r.badge ? `<span class="badge ${TT_BADGE[r.badge] || 'bg-ios-blue bg-opacity-10 text-ios-blue'} text-[10px]">${esc(r.badge)}</span>` : '';
+      const start = r.start || r.time || '';
+      const dur = ttDurText(ttDiffMin(start, r.end));
+      const timeText = start + (r.end ? ' - ' + r.end : '');
+      return `<div class="px-4 py-3 flex items-start gap-3">
+        <div class="flex-shrink-0" style="width:92px">
+          <div class="text-[12px] font-mono font-bold ${accent} whitespace-nowrap">${esc(timeText)}</div>
+          ${dur ? `<div class="text-[10px] text-ios-gray3 inline-flex items-center gap-0.5 mt-0.5"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.2"/><path d="M12 7.5V12l3 1.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>${esc(dur)}</div>` : ''}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-[14px] font-medium ${titleColor} flex items-center gap-2 flex-wrap">${esc(r.title)}${badge}</div>
+          ${r.desc ? `<div class="text-xs text-ios-secondary mt-0.5">${esc(r.desc)}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    const total = ttTotalText(c.timetable);
+    const totalHtml = total ? `<div class="px-4 py-2.5 flex justify-between items-center bg-ios-gray2 bg-opacity-40"><span class="text-[12px] font-semibold text-ios-secondary">총 소요시간</span><span class="text-[13px] font-bold text-ios-blue">${total}</span></div>` : '';
+    tt.innerHTML = rowsHtml + totalHtml;
+  }
+  const venue = document.getElementById('ciVenue');
+  if (venue) {
+    const ci = c.carryIn || {};
+    const chip = (label, on) => on
+      ? `<span class="badge bg-ios-green bg-opacity-10 text-ios-green">${esc(label)} O</span>`
+      : `<span class="badge bg-ios-gray2 text-ios-secondary">${esc(label)} X</span>`;
+    let chips = chip('음식', ci.food) + chip('음료', ci.drink) + chip('술', ci.alcohol);
+    if (ci.etc) chips += chip(ci.etcLabel || '기타', true);
+    const pk = c.parking || {};
+    let parkingText = '주차 불가';
+    if (pk.available) parkingText = pk.allDay ? '전일 무료' : (pk.freeHours > 0 ? pk.freeHours + '시간 무료' : '주차 가능');
+    venue.innerHTML = `
+      <div class="px-4 py-3">
+        <div class="text-[14px] font-semibold text-ios-label mb-1">${esc(c.venue)}</div>
+        <div class="text-[13px] text-ios-secondary">${esc(c.venueAddress)}</div>
+      </div>
+      <div class="px-4 py-3 flex justify-between items-center gap-4">
+        <span class="text-[14px] text-ios-secondary">입장 시간</span>
+        <span class="text-[14px] font-semibold text-ios-label">${esc(c.admission) || '-'}</span>
+      </div>
+      <div class="px-4 py-3">
+        <div class="text-[14px] text-ios-secondary mb-2">반입 가능</div>
+        <div class="flex flex-wrap gap-1.5">${chips}</div>
+      </div>
+      <div class="px-4 py-3 flex justify-between items-center gap-4">
+        <span class="text-[14px] text-ios-secondary">주차</span>
+        <span class="text-[14px] font-semibold text-ios-label">${parkingText}</span>
+      </div>`;
+  }
+}
+
+// ===== 편집 화면 =====
+function openEditConcert() {
+  const c = concertInfo;
+  const v = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  v('ef-name', c.name); v('ef-subtitle', c.subtitle);
+  v('ef-date', c.date || ''); v('ef-timeStart', c.timeStart || ''); v('ef-timeEnd', c.timeEnd || '');
+  v('ef-venue', c.venue);
+  v('ef-capacity', c.capacity); v('ef-ticket', c.ticket); v('ef-teams', c.teams); v('ef-members', c.members);
+  v('ef-venueAddress', c.venueAddress);
+  // 입장 시간
+  const adm = (c.admission || '17:30').split(':');
+  v('ef-admHour', adm[0] || '17'); v('ef-admMin', adm[1] || '30');
+  // 반입 가능
+  const ci = c.carryIn || {};
+  const setChk = (id, on) => { const el = document.getElementById(id); if (el) el.checked = !!on; };
+  setChk('ef-ci-food', ci.food); setChk('ef-ci-drink', ci.drink); setChk('ef-ci-alcohol', ci.alcohol); setChk('ef-ci-etc', ci.etc);
+  v('ef-ci-etcLabel', ci.etcLabel || '');
+  // 주차
+  const pk = c.parking || {};
+  setChk('ef-pk-avail', pk.available);
+  v('ef-pk-free', pk.allDay ? 'allday' : String(pk.freeHours || 0));
+  togglePkFree();
+  posterDraft = c.poster;
+  updatePosterPreview();
+  ttDraft = JSON.parse(JSON.stringify(c.timetable || []));
+  ttDraft.forEach(r => { if (r.start == null) r.start = r.time || ''; if (r.end == null) r.end = ''; }); // 구버전(time) 호환
+  renderTtEditor();
+  showScreen('edit-concert');
+}
+
+// 시간 계산 헬퍼
+function ttDiffMin(start, end) {
+  if (!start || !end) return 0;
+  const [sh, sm] = start.split(':').map(Number), [eh, em] = end.split(':').map(Number);
+  if ([sh, sm, eh, em].some(isNaN)) return 0;
+  let d = (eh * 60 + em) - (sh * 60 + sm);
+  if (d < 0) d += 1440; // 자정 넘김
+  return d;
+}
+function ttDurText(min) {
+  if (!min || min <= 0) return '';
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? (m ? `${h}시간 ${m}분` : `${h}시간`) : `${m}분`;
+}
+function ttTotalText(rows) {
+  const times = [];
+  (rows || []).forEach(r => { [r.start, r.end].forEach(t => { if (t) { const [h, m] = t.split(':').map(Number); if (!isNaN(h) && !isNaN(m)) times.push(h * 60 + m); } }); });
+  if (times.length < 2) return '';
+  let span = Math.max(...times) - Math.min(...times);
+  if (span < 0) span += 1440;
+  return ttDurText(span);
+}
+
+function renderTtEditor() {
+  const host = document.getElementById('ttEditor');
+  if (!host) return;
+  const total = ttTotalText(ttDraft);
+  const summary = `<div class="flex items-center justify-between px-1 mb-1 text-[12px] text-ios-secondary">
+    <span>총 ${ttDraft.length}개 항목</span>
+    <span>총 소요시간 <span class="text-ios-blue font-semibold">${total || '-'}</span></span>
+  </div>`;
+  const rows = ttDraft.map((r, i) => {
+    const dur = ttDurText(ttDiffMin(r.start, r.end));
+    const sH = (r.start || '').split(':')[0] || '', sM = (r.start || '').split(':')[1] || '';
+    const eH = (r.end || '').split(':')[0] || '', eM = (r.end || '').split(':')[1] || '';
+    return `
+    <div class="card p-3">
+      <div class="flex items-center gap-1 mb-2">
+        <select class="ef-input ef-compact" onchange="setTtTimePart(${i},'start','h',this.value)">${ttHourOpts(sH)}</select>
+        <select class="ef-input ef-compact" onchange="setTtTimePart(${i},'start','m',this.value)">${ttMinOpts(sM)}</select>
+        <span class="text-ios-secondary text-xs flex-shrink-0 px-0.5">~</span>
+        <select class="ef-input ef-compact" onchange="setTtTimePart(${i},'end','h',this.value)">${ttHourOpts(eH)}</select>
+        <select class="ef-input ef-compact" onchange="setTtTimePart(${i},'end','m',this.value)">${ttMinOpts(eM)}</select>
+      </div>
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[12px] text-ios-secondary">소요시간 <span class="text-ios-blue font-semibold">${dur || '-'}</span></span>
+        <button onclick="removeTtRow(${i})" class="text-[13px] text-ios-red font-semibold btn-press flex items-center gap-1" aria-label="행 삭제">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          삭제
+        </button>
+      </div>
+      <input class="ef-input mb-2" value="${esc(r.title)}" placeholder="제목" oninput="updateTtField(${i},'title',this.value)">
+      <input class="ef-input" value="${esc(r.desc)}" placeholder="설명 (선택)" oninput="updateTtField(${i},'desc',this.value)">
+    </div>`;
+  }).join('');
+  host.innerHTML = summary + rows;
+}
+function addTtRow() { ttDraft.push({ start:'', end:'', title:'', desc:'', accent:'blue' }); renderTtEditor(); }
+function removeTtRow(i) { ttDraft.splice(i, 1); renderTtEditor(); }
+function updateTtField(i, key, val) { if (ttDraft[i]) ttDraft[i][key] = val; }
+// 시/분 드롭다운 옵션 (분은 5분 단위)
+function ttHourOpts(sel) { let o = '<option value="">시</option>'; for (let h = 0; h < 24; h++) { const v = String(h).padStart(2, '0'); o += `<option value="${v}" ${v === sel ? 'selected' : ''}>${v}시</option>`; } return o; }
+function ttMinOpts(sel) { let o = '<option value="">분</option>'; for (let m = 0; m < 60; m += 5) { const v = String(m).padStart(2, '0'); o += `<option value="${v}" ${v === sel ? 'selected' : ''}>${v}분</option>`; } return o; }
+// 시/분 일부 변경 → start/end 재구성 + 소요/총시간 갱신
+function setTtTimePart(i, which, part, val) {
+  if (!ttDraft[i]) return;
+  const cur = (ttDraft[i][which] || '').split(':');
+  let h = cur[0] || '', m = cur[1] || '';
+  if (part === 'h') h = val; else m = val;
+  ttDraft[i][which] = (h || m) ? (`${h || '00'}:${m || '00'}`) : '';
+  renderTtEditor();
+}
+
+// 시간/주차 셀렉트 옵션 생성 (1회)
+function initEditSelects() {
+  const hour = document.getElementById('ef-admHour');
+  if (hour && !hour.options.length) {
+    let h = ''; for (let i = 0; i < 24; i++) { const v = String(i).padStart(2, '0'); h += `<option value="${v}">${v}시</option>`; }
+    hour.innerHTML = h;
+  }
+  const min = document.getElementById('ef-admMin');
+  if (min && !min.options.length) {
+    let m = ''; for (let n = 0; n < 60; n += 5) { const v = String(n).padStart(2, '0'); m += `<option value="${v}">${v}분</option>`; }
+    min.innerHTML = m;
+  }
+  const pkf = document.getElementById('ef-pk-free');
+  if (pkf && !pkf.options.length) {
+    let p = '<option value="0">무료 없음</option>';
+    for (let i = 1; i <= 12; i++) p += `<option value="${i}">${i}시간</option>`;
+    p += '<option value="allday">전일</option>';
+    pkf.innerHTML = p;
+  }
+}
+
+// 주차장 있음 체크에 따라 무료시간 입력 표시
+function togglePkFree() {
+  const avail = document.getElementById('ef-pk-avail');
+  const wrap = document.getElementById('ef-pk-freewrap');
+  if (wrap) wrap.style.display = (avail && avail.checked) ? '' : 'none';
+}
+
+// ===== 포스터 업로드 =====
+function triggerPosterUpload() { document.getElementById('ef-poster-file').click(); }
+
+function onPosterFile(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!/^image\/(png|jpe?g)$/i.test(file.type)) { showToast('PNG/JPG/JPEG 파일만 업로드할 수 있어요'); e.target.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      // localStorage 용량을 위해 다운스케일 후 JPEG로 저장 (원본 비율 유지)
+      const MAX = 1000;
+      let w = img.width, h = img.height;
+      if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      else if (h >= w && h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); // PNG 투명 영역 흰색 처리
+      ctx.drawImage(img, 0, 0, w, h);
+      posterDraft = cv.toDataURL('image/jpeg', 0.82);
+      updatePosterPreview();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = ''; // 같은 파일 재선택 허용
+}
+
+function updatePosterPreview() {
+  const wrap = document.getElementById('ef-poster-preview');
+  const img = document.getElementById('ef-poster-img');
+  if (!wrap || !img) return;
+  if (posterDraft) { img.src = posterDraft; wrap.classList.remove('hidden'); }
+  else { img.removeAttribute('src'); wrap.classList.add('hidden'); }
+}
+function removePosterDraft() { posterDraft = null; updatePosterPreview(); }
+
+// ===== 저장 =====
+function saveConcert() {
+  const g = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  concertInfo.name = g('ef-name');
+  concertInfo.subtitle = g('ef-subtitle');
+  concertInfo.date = g('ef-date');
+  concertInfo.timeStart = g('ef-timeStart');
+  concertInfo.timeEnd = g('ef-timeEnd');
+  concertInfo.dateText = composeDateText(concertInfo.date, concertInfo.timeStart, concertInfo.timeEnd);
+  concertInfo.venue = g('ef-venue');
+  concertInfo.capacity = g('ef-capacity');
+  concertInfo.ticket = g('ef-ticket');
+  concertInfo.teams = g('ef-teams');
+  concertInfo.members = g('ef-members');
+  concertInfo.venueAddress = g('ef-venueAddress');
+  concertInfo.admission = (g('ef-admHour') || '00') + ':' + (g('ef-admMin') || '00');
+  const chk = (id) => { const el = document.getElementById(id); return !!(el && el.checked); };
+  concertInfo.carryIn = {
+    food: chk('ef-ci-food'), drink: chk('ef-ci-drink'), alcohol: chk('ef-ci-alcohol'),
+    etc: chk('ef-ci-etc'), etcLabel: g('ef-ci-etcLabel'),
+  };
+  const pkFree = g('ef-pk-free');
+  concertInfo.parking = {
+    available: chk('ef-pk-avail'),
+    allDay: pkFree === 'allday',
+    freeHours: pkFree === 'allday' ? 0 : (parseInt(pkFree, 10) || 0),
+  };
+  concertInfo.timetable = ttDraft.filter(r => (r.start || r.title));
+  concertInfo.poster = posterDraft;
+  concertInfo.dday = computeDday(concertInfo.date);       // 자동 계산
+  concertInfo.progress = computeProgress(concertInfo);    // 자동 계산
+
+  renderHome();
+  renderConcertInfo();
+  const ok = saveConcertInfo();
+  showToast(ok ? '공연 정보를 저장했어요' : '저장됨 (포스터가 커서 이미지는 이번 세션만 유지)');
+  goBack();
+}
+
+// ===== 팀 정보 (Team Info) =====
+// 악기 카탈로그 (무대 아이콘/색상 매핑)
+const INSTRUMENTS = [
+  { key:'vocal',  label:'보컬',      short:'보컬',   icon:'mic',    color:'blue' },
+  { key:'guitar', label:'기타',      short:'기타',   icon:'guitar', color:'purple' },
+  { key:'bass',   label:'베이스',    short:'베이스', icon:'guitar', color:'teal' },
+  { key:'drums',  label:'드럼',      short:'드럼',   icon:'drums',  color:'orange' },
+  { key:'keys',   label:'키보드',    short:'키보드', icon:'keys',   color:'green' },
+  { key:'brass',  label:'브라스',    short:'브라스', icon:'brass',  color:'orange' },
+];
+const INST_BY_KEY = Object.fromEntries(INSTRUMENTS.map(i => [i.key, i]));
+
+const DEFAULT_TEAMS = [
+  { id:'bluemoon',  name:'블루문',     comp:{ vocal:{count:2,names:[]}, guitar:{count:2,names:[]}, drums:{count:1,names:[]}, keys:{count:1,names:[]}, brass:{count:2,names:[]} }, custom:[],
+    setlist:[ { title:'Sir Duke', artist:'Stevie Wonder', note:'브라스' }, { title:'Pick Up the Pieces', artist:'AWB', note:'' } ],
+    rider:{ input:'Sax·Trumpet SM58 2ch, 키보드 DI 스테레오', output:'웨지 3 (보컬/드럼/기타)', notes:'브라스 세션 전용 모니터 send 필요' } },
+  { id:'rednoise',  name:'레드 노이즈', comp:{ vocal:{count:1,names:[]}, guitar:{count:2,names:[]}, bass:{count:1,names:[]}, drums:{count:1,names:[]} }, custom:[],
+    setlist:[ { title:'Smells Like Teen Spirit', artist:'Nirvana', note:'' } ],
+    rider:{ input:'베이스 DI(Radial J48) 지참', output:'웨지 2', notes:'' } },
+  { id:'greenwave', name:'그린 웨이브', comp:{ vocal:{count:3,names:[]}, keys:{count:1,names:[]} }, custom:[ { cid:'cg-ac', name:'어쿠스틱 기타', count:2, names:[] }, { cid:'cg-vn', name:'바이올린', count:1, names:[] } ],
+    setlist:[ { title:'산들바람', artist:'자작곡', note:'어쿠스틱' } ],
+    rider:{ input:'어쿠스틱 DI ×2 / 바이올린 픽업 DI', output:'웨지 2', notes:'바이올린 DI 또는 픽업 마이크 필요' } },
+  { id:'nightfall', name:'나이트폴',   comp:{ vocal:{count:2,names:[]}, guitar:{count:2,names:[]}, bass:{count:1,names:[]}, drums:{count:1,names:[]}, keys:{count:1,names:[]} }, custom:[],
+    setlist:[ { title:'Bohemian Rhapsody', artist:'Queen', note:'헤드라이너' } ],
+    rider:{ input:'IEM 트랜스미터 (자체)', output:'인이어 모니터 (자체 시스템)', notes:'스테이지 좌측 AC 전원 요청' } },
+];
+let teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+
+function getTeamById(id) { return teams.find(t => t.id === id); }
+
+// count에 맞춰 names 배열 길이 보정
+function fitNames(c, count) {
+  c.count = count;
+  c.names = Array.isArray(c.names) ? c.names.slice(0, count) : [];
+  while (c.names.length < count) c.names.push('');
+}
+
+// comp/custom 데이터 정규화 (구버전 호환)
+const LEGACY_INST = { acoustic: '어쿠스틱 기타', violin: '바이올린' };
+function normalizeTeamComp() {
+  teams.forEach(t => {
+    if (!t.comp || typeof t.comp !== 'object') {
+      const def = DEFAULT_TEAMS.find(d => d.id === t.id);
+      t.comp = def ? JSON.parse(JSON.stringify(def.comp)) : {};
+    }
+    if (!Array.isArray(t.custom)) t.custom = [];
+    Object.keys(t.comp).forEach(k => {
+      const c = t.comp[k];
+      const count = parseInt(c && c.count, 10) || 0;
+      if (!INST_BY_KEY[k]) {
+        // 구버전 악기(어쿠스틱/바이올린)는 커스텀으로 이관
+        if (count > 0 && LEGACY_INST[k]) {
+          const names = Array.isArray(c.names) ? c.names.slice(0, count) : [];
+          while (names.length < count) names.push('');
+          t.custom.push({ cid: 'c' + Math.random().toString(36).slice(2, 8), name: LEGACY_INST[k], count, names });
+        }
+        delete t.comp[k];
+        return;
+      }
+      if (count <= 0) { delete t.comp[k]; return; }
+      fitNames(c, count);
+    });
+    t.custom.forEach(cu => {
+      if (!cu.cid) cu.cid = 'c' + Math.random().toString(36).slice(2, 8);
+      fitNames(cu, parseInt(cu.count, 10) || 0);
+      if (typeof cu.name !== 'string') cu.name = '';
+    });
+    if (!Array.isArray(t.setlist)) t.setlist = [];
+    if (!t.rider || typeof t.rider !== 'object') t.rider = {};
+    const r = t.rider;
+    if (r.input == null) r.input = (r.gear != null ? r.gear : '');     // 구버전 지참장비 → Input
+    if (r.output == null) r.output = (r.monitor != null ? r.monitor : ''); // 구버전 모니터 → Output
+    if (r.notes == null) r.notes = '';
+    delete r.monitor; delete r.gear;
+  });
+}
+
+// 팀 구성(comp/custom) → 무대 배치 요소 생성 (기존 좌표 유지)
+function buildStageElements(team) {
+  const existing = stagePlots[team.id] || [];
+  const byId = {}; existing.forEach(e => { byId[e.id] = e; });
+  const els = [];
+  let k = 0;
+  const push = (id, label, icon, color) => {
+    const prev = byId[id];
+    const col = k % 3, row = Math.floor(k / 3);
+    const x = prev ? prev.x : (12 + col * 28);
+    const y = prev ? prev.y : (10 + row * 22);
+    const hidden = !!(stageHidden[team.id] && stageHidden[team.id][id]);
+    els.push({ id, label, icon, color, x, y, hidden });
+    k++;
+  };
+  INSTRUMENTS.forEach(inst => {
+    const c = team.comp && team.comp[inst.key];
+    const count = c ? (parseInt(c.count, 10) || 0) : 0;
+    for (let n = 1; n <= count; n++) {
+      const nm = (c.names && c.names[n - 1]) ? c.names[n - 1] : '';
+      push(inst.key + '-' + n, nm || (inst.short + n), inst.icon, inst.color);
+    }
+  });
+  (team.custom || []).forEach(cu => {
+    const count = parseInt(cu.count, 10) || 0;
+    const base = cu.name || '기타';
+    for (let n = 1; n <= count; n++) {
+      const nm = (cu.names && cu.names[n - 1]) ? cu.names[n - 1] : '';
+      push((cu.cid || 'custom') + '-' + n, nm || (base + n), 'note', 'gray');
+    }
+  });
+  return els;
+}
+function buildAllStagePlots() { teams.forEach(t => { stagePlots[t.id] = buildStageElements(t); }); }
+function syncStagePlot(teamId) {
+  const t = getTeamById(teamId); if (!t) return;
+  stagePlots[teamId] = buildStageElements(t);
+  if (typeof currentTechBand !== 'undefined' && teamId === currentTechBand) renderStagePlot(currentTechBand);
+}
+
+function persistTeams() { try { localStorage.setItem('teams', JSON.stringify(teams)); } catch (e) {} }
+function loadTeams() {
+  try { const raw = localStorage.getItem('teams'); if (raw) { const s = JSON.parse(raw); if (Array.isArray(s) && s.length) teams = s; } } catch (e) {}
+}
+
+// 팀 이름 → 테크라이더 탭/라벨에 동기화 (기존 4개 팀 id에 한해)
+function syncTeamName(t) {
+  if (t.id in BAND_NAMES) {
+    BAND_NAMES[t.id] = t.name || BAND_NAMES[t.id];
+    const idx = TECH_BANDS.indexOf(t.id);
+    if (idx >= 0) { const tab = document.getElementById('techbandtab-' + idx); if (tab && t.name) tab.textContent = t.name; }
+    if (typeof currentTechBand !== 'undefined' && currentTechBand === t.id)
+      document.querySelectorAll('.tech-band-name').forEach(n => n.textContent = t.name);
+  }
+}
+function syncAllTeamNames() { teams.forEach(syncTeamName); }
+
+let currentTeamIdx = 0;
+let teamsBackup = null;
+let currentTeamSubtab = 'basic';
+const TEAM_SUBS = ['basic', 'setlist', 'rider'];
+
+function openTeamInfo() {
+  if (currentTeamIdx >= teams.length) currentTeamIdx = 0;
+  teamsBackup = JSON.parse(JSON.stringify(teams)); // 취소 시 복원용 스냅샷
+  showScreen('team-info');
+  renderTeams(); // 화면 표시 후 렌더(인디케이터 위치 측정 위해)
+}
+
+function renderTeams() {
+  renderTeamTabs();
+  applyTeamSubActive();
+  renderTeamDetail();
+  moveSeg(document.getElementById('teamTabs'));
+  moveSeg(document.getElementById('teamSubTabs'));
+}
+
+// 서브탭 (기본 정보 / Set List / 테크라이더)
+function applyTeamSubActive() {
+  TEAM_SUBS.forEach(s => {
+    const tab = document.getElementById('teamsub-' + s);
+    if (!tab) return;
+    const on = s === currentTeamSubtab;
+    tab.classList.toggle('text-ios-blue', on);
+    tab.classList.toggle('text-ios-secondary', !on);
+  });
+}
+function switchTeamSub(sub) {
+  currentTeamSubtab = sub;
+  applyTeamSubActive();
+  moveSeg(document.getElementById('teamSubTabs'));
+  renderTeamDetail();
+}
+
+// 팀 이름 세그먼트 탭
+function renderTeamTabs() {
+  const tabs = document.getElementById('teamTabs');
+  if (!tabs) return;
+  tabs.innerHTML = teams.map((t, i) => {
+    const active = i === currentTeamIdx;
+    return `<button id="teamtab-${i}" onclick="selectTeam(${i})" class="flex-shrink-0 px-4 py-1.5 rounded-[8px] text-[13px] font-medium transition-all whitespace-nowrap ${active ? 'text-ios-blue' : 'text-ios-secondary'}">${esc(t.name) || '(이름 없음)'}</button>`;
+  }).join('');
+}
+
+// 선택된 팀 상세/편집 (서브탭 분기)
+function renderTeamDetail() {
+  const host = document.getElementById('teamDetail');
+  if (!host) return;
+  const t = teams[currentTeamIdx];
+  if (!t) { host.innerHTML = '<p class="text-[13px] text-ios-secondary text-center py-4">팀이 없습니다. ＋ 로 추가하세요.</p>'; return; }
+  if (currentTeamSubtab === 'setlist') { host.innerHTML = teamSetlistHtml(t); return; }
+  if (currentTeamSubtab === 'rider') { host.innerHTML = teamRiderHtml(t); return; }
+  host.innerHTML = teamBasicHtml(t);
+}
+
+// === 기본 정보 탭 ===
+function teamBasicHtml(t) {
+  if (!t.comp) t.comp = {};
+
+  const compHtml = INSTRUMENTS.map(inst => {
+    const c = t.comp[inst.key];
+    const count = c ? (parseInt(c.count, 10) || 0) : 0;
+    let opts = '';
+    for (let v = 0; v <= 5; v++) opts += `<option value="${v}" ${v === count ? 'selected' : ''}>${v === 0 ? '없음' : v + '명'}</option>`;
+    let players = '';
+    if (count > 0) {
+      players = '<div class="mt-2 space-y-2">';
+      for (let n = 1; n <= count; n++) {
+        const nm = (c.names && c.names[n - 1]) || '';
+        players += `<div class="flex items-center gap-2">
+          <span class="text-[12px] font-medium text-ios-secondary flex-shrink-0" style="width:62px">${esc(inst.short)}${n}</span>
+          <input class="ef-input flex-1" value="${esc(nm)}" placeholder="성명 (직접 입력)" oninput="setCompName('${inst.key}',${n - 1},this.value)">
+        </div>`;
+      }
+      players += '</div>';
+    }
+    return `<div class="py-2.5 border-b border-ios-gray2 last:border-0">
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-[14px] font-medium text-ios-label">${esc(inst.label)}</span>
+        <select class="ef-input" style="width:88px;flex:none" onchange="setCompCount('${inst.key}',this.value)">${opts}</select>
+      </div>
+      ${players}
+    </div>`;
+  }).join('');
+
+  // 기타(직접 입력) 커스텀 악기
+  const customHtml = (t.custom || []).map((cu, i) => {
+    const count = parseInt(cu.count, 10) || 0;
+    let opts = '';
+    for (let v = 0; v <= 5; v++) opts += `<option value="${v}" ${v === count ? 'selected' : ''}>${v === 0 ? '없음' : v + '명'}</option>`;
+    let players = '';
+    if (count > 0) {
+      players = '<div class="mt-2 space-y-2">';
+      for (let n = 1; n <= count; n++) {
+        const nm = (cu.names && cu.names[n - 1]) || '';
+        players += `<div class="flex items-center gap-2">
+          <span class="text-[12px] font-medium text-ios-secondary flex-shrink-0 text-center" style="width:62px">${n}</span>
+          <input class="ef-input flex-1" value="${esc(nm)}" placeholder="성명 (직접 입력)" oninput="setCustomName(${i},${n - 1},this.value)">
+        </div>`;
+      }
+      players += '</div>';
+    }
+    return `<div class="py-2.5 border-b border-ios-gray2 last:border-0">
+      <div class="flex items-center gap-2">
+        <input class="ef-input flex-1" value="${esc(cu.name)}" placeholder="악기 이름 (직접 입력)" oninput="setCustomField(${i},'name',this.value)">
+        <select class="ef-input" style="width:74px;flex:none" onchange="setCustomCount(${i},this.value)">${opts}</select>
+        <button onclick="removeCustomInst(${i})" class="text-ios-red btn-press p-1 flex-shrink-0" aria-label="삭제">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      ${players}
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-[11px] font-bold text-ios-secondary tracking-wider">TEAM ${currentTeamIdx + 1}</span>
+      <button onclick="removeTeam(${currentTeamIdx})" class="text-[13px] text-ios-red font-semibold btn-press flex items-center gap-1" aria-label="팀 삭제">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        삭제
+      </button>
+    </div>
+    <div><label class="ef-label">팀 이름</label><input id="team-name-input" class="ef-input font-bold" value="${esc(t.name)}" placeholder="팀 이름" oninput="updateTeam(${currentTeamIdx},'name',this.value)"></div>
+    <div>
+      <label class="ef-label">팀 구성 (악기) — 인원 선택 후 성명 입력</label>
+      <div class="bg-gray-50 rounded-[10px] px-3">${compHtml}</div>
+    </div>
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <label class="ef-label" style="margin:0">기타 (직접 입력)</label>
+        <button onclick="addCustomInst()" class="text-[13px] text-ios-blue font-semibold btn-press">+ 항목 추가</button>
+      </div>
+      <div class="bg-gray-50 rounded-[10px] px-3">${customHtml || '<p class="text-[12px] text-ios-secondary py-3">＋ 항목 추가로 직접 입력 악기를 등록하세요.</p>'}</div>
+    </div>`;
+}
+
+// === Set List 탭 ===
+function teamSetlistHtml(t) {
+  const list = t.setlist || [];
+  const rows = list.map((s, i) => `
+    <div class="flex items-start gap-2 py-2.5 border-b border-ios-gray2 last:border-0">
+      <span class="text-[13px] font-bold text-ios-blue flex-shrink-0 text-center pt-2" style="width:22px">${i + 1}</span>
+      <div class="flex-1 space-y-2 min-w-0">
+        <input class="ef-input" value="${esc(s.title)}" placeholder="곡명" oninput="setSong(${i},'title',this.value)">
+        <div class="grid grid-cols-2 gap-2">
+          <input class="ef-input" value="${esc(s.artist)}" placeholder="아티스트" oninput="setSong(${i},'artist',this.value)">
+          <input class="ef-input" value="${esc(s.note)}" placeholder="비고 (예: 브라스)" oninput="setSong(${i},'note',this.value)">
+        </div>
+      </div>
+      <button onclick="removeSong(${i})" class="text-ios-red btn-press p-1 flex-shrink-0 mt-1" aria-label="곡 삭제">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>`).join('');
+  return `
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-[11px] font-bold text-ios-secondary tracking-wider">SET LIST · ${list.length}곡</span>
+      <button onclick="addSong()" class="text-[13px] text-ios-blue font-semibold btn-press">+ 곡 추가</button>
+    </div>
+    <div class="bg-gray-50 rounded-[10px] px-3">${rows || '<p class="text-[12px] text-ios-secondary py-3">＋ 곡 추가로 셋리스트를 만드세요.</p>'}</div>`;
+}
+function setSong(i, key, val) { const t = teams[currentTeamIdx]; if (!t || !t.setlist || !t.setlist[i]) return; t.setlist[i][key] = val; }
+function addSong() { const t = teams[currentTeamIdx]; if (!t) return; if (!Array.isArray(t.setlist)) t.setlist = []; t.setlist.push({ title: '', artist: '', note: '' }); renderTeamDetail(); }
+function removeSong(i) { const t = teams[currentTeamIdx]; if (!t || !t.setlist) return; t.setlist.splice(i, 1); renderTeamDetail(); }
+
+// === 테크라이더 탭 ===
+function teamRiderHtml(t) {
+  const r = t.rider || {};
+  const comp = [];
+  INSTRUMENTS.forEach(inst => { const c = t.comp && t.comp[inst.key]; const n = c ? (parseInt(c.count, 10) || 0) : 0; if (n > 0) comp.push(inst.label + ' ×' + n); });
+  (t.custom || []).forEach(cu => { const n = parseInt(cu.count, 10) || 0; if (n > 0) comp.push((cu.name || '기타') + ' ×' + n); });
+  const compText = comp.length ? comp.join(', ') : '구성 정보 없음 (기본 정보 탭에서 입력)';
+  return `
+    <div>
+      <label class="ef-label">기본정보</label>
+      <div class="bg-gray-50 rounded-[10px] px-3 py-2 text-[13px] text-ios-label">${esc(compText)}</div>
+    </div>
+    <div><label class="ef-label">Input (인풋 · 마이크/DI)</label><textarea class="ef-input" rows="3" placeholder="예: Sax·Trumpet SM58 2ch, 키보드 DI 스테레오" oninput="setRider('input',this.value)">${esc(r.input)}</textarea></div>
+    <div><label class="ef-label">Output (아웃풋 · 모니터)</label><textarea class="ef-input" rows="3" placeholder="예: 웨지 2 / 인이어 자체" oninput="setRider('output',this.value)">${esc(r.output)}</textarea></div>
+    <div><label class="ef-label">기타 요청사항</label><textarea class="ef-input" rows="3" placeholder="추가 요청 사항" oninput="setRider('notes',this.value)">${esc(r.notes)}</textarea></div>`;
+}
+function setRider(key, val) { const t = teams[currentTeamIdx]; if (!t) return; if (!t.rider) t.rider = {}; t.rider[key] = val; }
+
+// 악기 인원 수 변경 → 멤버 입력란 / 무대배치 갱신 (저장은 '저장' 버튼에서)
+function setCompCount(instKey, val) {
+  const t = teams[currentTeamIdx]; if (!t) return;
+  if (!t.comp) t.comp = {};
+  const count = parseInt(val, 10) || 0;
+  if (count <= 0) { delete t.comp[instKey]; }
+  else {
+    const cur = t.comp[instKey] || { count: 0, names: [] };
+    fitNames(cur, count);
+    t.comp[instKey] = cur;
+  }
+  renderTeamDetail();
+  syncStagePlot(t.id);
+}
+
+// 멤버 성명 입력 → 무대배치 라벨 갱신
+function setCompName(instKey, idx, val) {
+  const t = teams[currentTeamIdx]; if (!t || !t.comp[instKey]) return;
+  t.comp[instKey].names[idx] = val;
+  syncStagePlot(t.id);
+}
+
+// 커스텀(직접 입력) 악기
+function setCustomCount(i, val) {
+  const t = teams[currentTeamIdx]; if (!t || !t.custom || !t.custom[i]) return;
+  fitNames(t.custom[i], parseInt(val, 10) || 0);
+  renderTeamDetail();
+  syncStagePlot(t.id);
+}
+function setCustomName(i, idx, val) {
+  const t = teams[currentTeamIdx]; if (!t || !t.custom || !t.custom[i]) return;
+  t.custom[i].names[idx] = val;
+  syncStagePlot(t.id);
+}
+function setCustomField(i, key, val) {
+  const t = teams[currentTeamIdx]; if (!t || !t.custom || !t.custom[i]) return;
+  t.custom[i][key] = val;
+  syncStagePlot(t.id);
+}
+function addCustomInst() {
+  const t = teams[currentTeamIdx]; if (!t) return;
+  if (!Array.isArray(t.custom)) t.custom = [];
+  t.custom.push({ cid: 'c' + Math.random().toString(36).slice(2, 8), name: '', count: 0, names: [] });
+  renderTeamDetail();
+}
+function removeCustomInst(i) {
+  const t = teams[currentTeamIdx]; if (!t || !t.custom) return;
+  t.custom.splice(i, 1);
+  renderTeamDetail();
+  syncStagePlot(t.id);
+}
+
+function selectTeam(i) {
+  currentTeamIdx = i;
+  const cont = document.getElementById('teamTabs');
+  cont.querySelectorAll('button').forEach((b, j) => {
+    b.classList.toggle('text-ios-blue', j === i);
+    b.classList.toggle('text-ios-secondary', j !== i);
+  });
+  moveSeg(cont);
+  renderTeamDetail();
+}
+
+function addTeam() {
+  teams.push({ id: 'team' + Date.now(), name: '새 팀', comp: {}, custom: [], setlist: [], rider: { input: '', output: '', notes: '' } });
+  currentTeamIdx = teams.length - 1;
+  currentTeamSubtab = 'basic';
+  renderTeams();
+  const tabs = document.getElementById('teamTabs');
+  if (tabs) tabs.scrollLeft = tabs.scrollWidth;
+  const nameInput = document.getElementById('team-name-input');
+  if (nameInput) { nameInput.focus(); nameInput.select(); }
+  showToast('새 팀을 추가했어요 (저장 버튼으로 반영)');
+}
+
+function removeTeam(i) {
+  if (teams.length <= 1) { showToast('최소 1개 팀은 필요해요'); return; }
+  if (!confirm(`'${teams[i].name || '이 팀'}'을(를) 삭제할까요?`)) return;
+  teams.splice(i, 1);
+  if (currentTeamIdx >= teams.length) currentTeamIdx = teams.length - 1;
+  renderTeams();
+}
+
+function updateTeam(i, key, val) {
+  if (!teams[i]) return;
+  teams[i][key] = val;
+  if (key === 'name') {
+    syncTeamName(teams[i]);
+    const tab = document.getElementById('teamtab-' + i);
+    if (tab) tab.textContent = val || '(이름 없음)';
+  }
+}
+
+// ===== 저장 / 취소 =====
+function saveTeams() {
+  normalizeTeamComp();
+  persistTeams();
+  syncAllTeamNames();
+  buildAllStagePlots();
+  if (typeof currentTechBand !== 'undefined') renderStagePlot(currentTechBand);
+  teamsBackup = JSON.parse(JSON.stringify(teams));
+  showToast('팀 정보를 저장했어요');
+  goBack();
+}
+
+function cancelTeams() {
+  if (teamsBackup) teams = JSON.parse(JSON.stringify(teamsBackup));
+  normalizeTeamComp();
+  if (currentTeamIdx >= teams.length) currentTeamIdx = Math.max(0, teams.length - 1);
+  syncAllTeamNames();
+  buildAllStagePlots();
+  if (typeof currentTechBand !== 'undefined') renderStagePlot(currentTechBand);
+  goBack();
+}
+
+// ===== 무대 정보 (Stage Info) =====
+const DEFAULT_STAGE = {
+  sound: {
+    pa:      { on: true,  detail: 'L-Acoustics A15 (L/R)', qty: 2 },
+    subpa:   { on: false, detail: '', qty: 1 },
+    monitor: { on: true,  detail: '웨지 모니터', qty: 4 },
+    iem:     { on: true,  detail: '인이어 send', qty: 4 },
+    custom:  [],
+  },
+  backline: '드럼 풀셋(공용), 기타·베이스 앰프 공용',
+  notes: '로드인 14:00~ / 사운드체크 15:00~17:00',
+};
+const SOUND_CATS = [ { key: 'pa', label: '메인 PA' }, { key: 'subpa', label: '서브 PA' }, { key: 'monitor', label: '모니터' }, { key: 'iem', label: '인이어' } ];
+// 무대 배치도에 아이콘을 생성하는 음향 카테고리 (체크 + 수량)
+const HOUSE_SOUND = {
+  pa:      { label: 'PA',    icon: 'speaker', color: 'gray' },
+  subpa:   { label: '서브PA', icon: 'speaker', color: 'teal' },
+  monitor: { label: '모니터', icon: 'wedge',   color: 'green' },
+};
+let stageInfo = JSON.parse(JSON.stringify(DEFAULT_STAGE));
+let soundDraft = null; // 음향 편집용 임시
+
+// 무대(하우스) 배치도 — 음향 탭 설정(메인PA/서브PA/모니터)에서만 아이콘 생성
+let housePlot = [];          // 렌더링되는 요소 배열
+let housePos = {};           // { id: {x,y} } 저장된 드래그 위치
+let houseEditing = false;
+
+// 음향(체크+수량) + 고정시설 → 무대 배치 요소 생성 (기존/저장 좌표 유지)
+function buildHousePlot(sound) {
+  sound = sound || (stageInfo && stageInfo.sound) || {};
+  const byId = {}; housePlot.forEach(e => { byId[e.id] = e; });
+  let k = 0;
+  const getPos = (id) => {
+    if (byId[id]) return { x: byId[id].x, y: byId[id].y };
+    if (housePos[id]) return housePos[id];
+    const col = k % 3, row = Math.floor(k / 3); k++;
+    return { x: 10 + col * 30, y: 8 + row * 18 };
+  };
+  const els = [];
+  ['pa', 'subpa', 'monitor'].forEach(cat => {
+    const it = sound[cat];
+    if (!it || !it.on) return;
+    const meta = HOUSE_SOUND[cat];
+    const n = parseInt(it.qty, 10) || 0;
+    for (let i = 1; i <= n; i++) {
+      const id = cat + '-' + i;
+      const p = getPos(id);
+      els.push({ id, label: meta.label + (n > 1 ? i : ''), icon: meta.icon, color: meta.color, x: p.x, y: p.y });
+    }
+  });
+  return els;
+}
+
+// 저장된(확정) 음향 설정 + 위치로 하우스 레이아웃 산출 (테크라이더 배경용)
+function getHouseLayout() {
+  const sound = (stageInfo && stageInfo.sound) || {};
+  const els = []; let k = 0;
+  const getPos = (id) => {
+    if (housePos[id]) return housePos[id];
+    const col = k % 3, row = Math.floor(k / 3); k++;
+    return { x: 10 + col * 30, y: 8 + row * 18 };
+  };
+  ['pa', 'subpa', 'monitor'].forEach(cat => {
+    const it = sound[cat];
+    if (!it || !it.on) return;
+    const meta = HOUSE_SOUND[cat];
+    const n = parseInt(it.qty, 10) || 0;
+    for (let i = 1; i <= n; i++) {
+      const id = cat + '-' + i;
+      const p = getPos(id);
+      els.push({ id, label: meta.label + (n > 1 ? i : ''), icon: meta.icon, color: meta.color, x: p.x, y: p.y });
+    }
+  });
+  return els;
+}
+
+// 테크라이더 무대배치도 배경에 하우스 배치 렌더 (읽기 전용)
+function renderStageHouseBg() {
+  const host = document.getElementById('stageHouseBg');
+  if (!host) return;
+  host.innerHTML = getHouseLayout().map(e => {
+    const accent = COLOR[e.color] || '#8E8E93';
+    const style = `left:${e.x}%; top:${e.y}%; color:${accent}; --accent:${accent};`;
+    return `<div class="stage-el house-bg-el" style="${style}">
+      <div class="stage-el-icon">${ICONS[e.icon] || ''}</div>
+      <div class="stage-el-label">${esc(e.label)}</div>
+    </div>`;
+  }).join('');
+}
+
+function loadStageInfo() {
+  try { const raw = localStorage.getItem('stageInfo'); if (raw) stageInfo = Object.assign(JSON.parse(JSON.stringify(DEFAULT_STAGE)), JSON.parse(raw)); } catch (e) {}
+  // 음향 구조 정규화 (구버전 호환)
+  if (!stageInfo.sound || typeof stageInfo.sound !== 'object') stageInfo.sound = JSON.parse(JSON.stringify(DEFAULT_STAGE.sound));
+  ['pa', 'subpa', 'monitor', 'iem'].forEach(k => { if (!stageInfo.sound[k] || typeof stageInfo.sound[k] !== 'object') stageInfo.sound[k] = JSON.parse(JSON.stringify(DEFAULT_STAGE.sound[k])); });
+  if (!Array.isArray(stageInfo.sound.custom)) stageInfo.sound.custom = [];
+}
+function persistStageInfo() { try { localStorage.setItem('stageInfo', JSON.stringify(stageInfo)); } catch (e) {} }
+
+function loadHousePos() {
+  try {
+    const raw = localStorage.getItem('housePos');
+    if (raw) { const o = JSON.parse(raw); if (o && typeof o === 'object') housePos = o; }
+  } catch (e) {}
+}
+function persistHousePos() {
+  housePlot.forEach(el => { housePos[el.id] = { x: el.x, y: el.y }; }); // 현재 위치 수집
+  try { localStorage.setItem('housePos', JSON.stringify(housePos)); } catch (e) {}
+}
+
+function renderHousePlot() {
+  const host = document.getElementById('houseElements');
+  if (!host) return;
+  host.innerHTML = housePlot.map(e => {
+    const accent = COLOR[e.color] || '#8E8E93';
+    const style = `left:${e.x}%; top:${e.y}%; color:${accent}; --accent:${accent};`;
+    return `<div class="stage-el" data-id="${e.id}" style="${style}">
+      <div class="stage-el-icon">${ICONS[e.icon] || ''}</div>
+      <div class="stage-el-label">${esc(e.label)}</div>
+    </div>`;
+  }).join('');
+  host.querySelectorAll('.stage-el').forEach(el => attachDrag(el, housePlot));
+}
+
+function toggleHouseEdit() {
+  houseEditing = !houseEditing;
+  const c = document.getElementById('houseCanvas');
+  if (c) c.classList.toggle('editing', houseEditing);
+  document.getElementById('houseEditIcon').classList.toggle('hidden', houseEditing);
+  document.getElementById('houseSaveIcon').classList.toggle('hidden', !houseEditing);
+  document.getElementById('houseHint').classList.toggle('hidden', !houseEditing);
+  if (!houseEditing) { persistHousePos(); showToast('무대 배치를 저장했어요'); }
+}
+
+// 음향(PA/모니터/인이어/기타) 렌더링
+function renderSoundList() {
+  const host = document.getElementById('soundList');
+  if (!host || !soundDraft) return;
+  const qtyOpts = (q) => { let o = ''; for (let v = 1; v <= 4; v++) o += `<option value="${v}" ${v === (parseInt(q, 10) || 1) ? 'selected' : ''}>${v}</option>`; return o; };
+  let html = SOUND_CATS.map(cat => {
+    const it = soundDraft[cat.key] || { on: false, detail: '', qty: 1 };
+    return `<div class="py-2.5 border-b border-ios-gray2 last:border-0">
+      <div class="flex items-center justify-between gap-2">
+        <label class="ef-check"><input type="checkbox" ${it.on ? 'checked' : ''} onchange="setSound('${cat.key}','on',this.checked)"><span class="font-medium text-ios-label">${cat.label}</span></label>
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          <span class="text-[12px] text-ios-secondary">수량</span>
+          <select class="ef-input" style="width:60px;flex:none" onchange="setSound('${cat.key}','qty',this.value)">${qtyOpts(it.qty)}</select>
+        </div>
+      </div>
+      <input class="ef-input mt-2" value="${esc(it.detail)}" placeholder="직접 입력 (모델/사양)" oninput="setSound('${cat.key}','detail',this.value)">
+    </div>`;
+  }).join('');
+  html += (soundDraft.custom || []).map((cu, i) => `
+    <div class="py-2.5 border-b border-ios-gray2 last:border-0">
+      <div class="flex items-center gap-2">
+        <input type="checkbox" ${cu.on ? 'checked' : ''} onchange="setSoundCustom(${i},'on',this.checked)" style="width:18px;height:18px;accent-color:#007AFF;flex-shrink:0">
+        <input class="ef-input flex-1" value="${esc(cu.name)}" placeholder="기타 장비 직접 입력" oninput="setSoundCustom(${i},'name',this.value)">
+        <select class="ef-input" style="width:56px;flex:none" onchange="setSoundCustom(${i},'qty',this.value)">${qtyOpts(cu.qty)}</select>
+        <button onclick="removeSoundCustom(${i})" class="text-ios-red btn-press p-1 flex-shrink-0" aria-label="삭제"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      </div>
+    </div>`).join('');
+  host.innerHTML = html;
+}
+function setSound(key, field, val) {
+  if (!soundDraft[key]) soundDraft[key] = { on: false, detail: '', qty: 1 };
+  soundDraft[key][field] = (field === 'qty') ? (parseInt(val, 10) || 1) : val;
+  // 메인PA/서브PA/모니터의 체크·수량 변경 → 무대 배치도에 아이콘 반영
+  if (HOUSE_SOUND[key] && (field === 'on' || field === 'qty')) {
+    housePlot = buildHousePlot(soundDraft);
+    renderHousePlot();
+  }
+}
+function setSoundCustom(i, field, val) {
+  const c = soundDraft.custom[i]; if (!c) return;
+  c[field] = (field === 'qty') ? (parseInt(val, 10) || 1) : val;
+}
+function addSoundCustom() {
+  if (!Array.isArray(soundDraft.custom)) soundDraft.custom = [];
+  soundDraft.custom.push({ id: 's' + Date.now(), name: '', on: true, qty: 1 });
+  renderSoundList();
+}
+function removeSoundCustom(i) { soundDraft.custom.splice(i, 1); renderSoundList(); }
+
+function openStageInfo() {
+  const v = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  v('sf-backline', stageInfo.backline); v('sf-notes', stageInfo.notes);
+  // 음향 편집용 복사 + 렌더
+  soundDraft = JSON.parse(JSON.stringify(stageInfo.sound || {}));
+  ['pa', 'subpa', 'monitor', 'iem'].forEach(k => { if (!soundDraft[k] || typeof soundDraft[k] !== 'object') soundDraft[k] = { on: false, detail: '', qty: 1 }; });
+  if (!Array.isArray(soundDraft.custom)) soundDraft.custom = [];
+  renderSoundList();
+  housePlot = buildHousePlot(soundDraft); // 음향 설정 기반 배치도 재생성
+  // 배치도 편집 상태 초기화 + 렌더
+  houseEditing = false;
+  const c = document.getElementById('houseCanvas'); if (c) c.classList.remove('editing');
+  document.getElementById('houseEditIcon').classList.remove('hidden');
+  document.getElementById('houseSaveIcon').classList.add('hidden');
+  document.getElementById('houseHint').classList.add('hidden');
+  renderHousePlot();
+  showScreen('stage-info');
+}
+function saveStageInfo() {
+  const g = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  if (soundDraft) stageInfo.sound = JSON.parse(JSON.stringify(soundDraft));
+  stageInfo.backline = g('sf-backline'); stageInfo.notes = g('sf-notes');
+  persistStageInfo();
+  showToast('무대 정보를 저장했어요');
+  goBack();
+}
+
+// ===== INIT =====
+loadConcertInfo();
+loadStageInfo();
+loadHousePos();
+housePlot = buildHousePlot(stageInfo.sound); // 음향 설정 → 무대 배치 요소 생성
+initEditSelects();
+loadTeams();
+normalizeTeamComp();      // 팀 구성 데이터 정규화 (구버전 호환)
+syncAllTeamNames();
+renderHome();
+renderConcertInfo();
+loadStageHidden();        // 요소 표시/숨김 상태
+loadInputMap();           // 인풋 채널(마이크/DI·연결·비고) 설정
+buildAllStagePlots();     // 팀 구성(comp) → 무대배치 요소 생성
+loadStagePlots();         // 저장된 드래그 위치 덮어쓰기
+switchTechBand(0);        // 기본 팀: 블루문 (무대배치도 + 인풋리스트 렌더링)
+</script>
+</body>
+</html>
