@@ -710,7 +710,25 @@
   </div>
 </div>
 
-</main><!-- /main -->
+
+<!-- ===================================== -->
+<!-- SCREEN: 체크리스트 (Checklist)          -->
+<!-- ===================================== -->
+<div id="screen-checklist" class="screen pt-4">
+  <div class="flex items-center justify-between px-1 mb-2">
+    <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider">준비 체크리스트</h3>
+    <span id="chkProgress" class="text-[12px] text-ios-secondary"></span>
+  </div>
+  <!-- 진행 바 -->
+  <div class="px-1 mb-3"><div class="progress-bar"><div id="chkBar" class="progress-fill" style="width:0%"></div></div></div>
+  <!-- 항목 추가 -->
+  <div class="flex gap-2 mb-3">
+    <input id="chkInput" type="text" class="ef-input flex-1" placeholder="할 일 추가 (예: 인풋리스트 제출)" onkeydown="if(event.key==='Enter')addChecklistItem()">
+    <button onclick="addChecklistItem()" class="flex-shrink-0 px-4 rounded-ios bg-ios-blue text-white font-semibold btn-press">추가</button>
+  </div>
+  <!-- 목록 -->
+  <div id="checklist" class="card overflow-hidden mb-6"></div>
+</div><!-- /screen-checklist -->
 
 <!-- ===== BOTTOM TAB BAR ===== -->
 <nav class="nav-blur fixed bottom-0 left-0 right-0 z-50 border-t border-ios-gray2" style="padding-bottom: env(safe-area-inset-bottom)">
@@ -731,10 +749,31 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       <span class="text-[10px] font-medium">테크라이더</span>
     </button>
+    <button onclick="showScreen('checklist')" id="tab-checklist" class="flex-1 flex flex-col items-center py-2 gap-0.5 text-ios-secondary">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="3" width="6" height="4" rx="1" stroke="currentColor" stroke-width="1.8"/><path d="M9 13l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="text-[10px] font-medium">체크리스트</span>
+    </button>
   </div>
 </nav>
 
+<!-- 실시간 동기화용 Firebase (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
 <script>
+// ===== 실시간 동기화 설정 =====
+// Firebase 콘솔(https://console.firebase.google.com) → 프로젝트 생성 → Realtime Database 생성 후
+// 아래 값을 채우면 모든 사용자가 실시간으로 데이터를 공유합니다. (비워두면 기존처럼 이 기기에만 저장)
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBAt65iLUQ_YOrPPgqbTQPey3zITmRHrYs",
+  authDomain: "band-info-20cdf.firebaseapp.com",
+  databaseURL: "https://band-info-20cdf-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "band-info-20cdf",
+  storageBucket: "band-info-20cdf.firebasestorage.app",
+  messagingSenderId: "655348520805",
+  appId: "1:655348520805:web:c405e6d101cb6bbbf8f38c"
+};
+
 // ===== DATA =====
 const channels = [
   {ch:1,  src:'킥 드럼 (Inside)',    mic:'Beta 52A',   conn:'XLR',  di:false, band:'all',    note:''},
@@ -827,6 +866,7 @@ function _activateScreen(id) {
   }
   // 셋리스트 진입 시 팀 정보의 Set List를 최신으로 반영
   if (id === 'setlist' && typeof renderSetlist === 'function') renderSetlist();
+  if (id === 'checklist' && typeof renderChecklist === 'function') renderChecklist();
   updateNav(id);
   window.scrollTo({top: 0, behavior: 'smooth'});
 }
@@ -838,6 +878,7 @@ function updateNav(id) {
     'edit-concert': '공연 정보 수정',
     'team-info': '팀 정보',
     'stage-info': '무대 정보',
+    'checklist': '체크리스트',
     'setlist': 'Set List',
     'tech-rider': '테크라이더',
     'settings': '설정'
@@ -853,12 +894,12 @@ function updateNav(id) {
     backBtn.classList.remove('hidden');
     backBtn.classList.add('flex');
     const prev = screenHistory[screenHistory.length - 1];
-    const prevTitles = {'home':'홈','concert-info':'공연정보','edit-concert':'정보수정','team-info':'팀정보','stage-info':'무대정보','setlist':'셋리스트','tech-rider':'테크라이더','settings':'설정'};
+    const prevTitles = {'home':'홈','concert-info':'공연정보','edit-concert':'정보수정','team-info':'팀정보','stage-info':'무대정보','checklist':'체크리스트','setlist':'셋리스트','tech-rider':'테크라이더','settings':'설정'};
     backLabel.textContent = prevTitles[prev] || '뒤로';
   }
 
   // Tab bar active state
-  const tabs = ['home','concert-info','setlist','tech-rider'];
+  const tabs = ['home','concert-info','setlist','tech-rider','checklist'];
   tabs.forEach(t => {
     const el = document.getElementById('tab-' + t);
     if (!el) return;
@@ -1509,7 +1550,7 @@ function openEditConcert() {
   posterDraft = c.poster;
   updatePosterPreview();
   ttDraft = JSON.parse(JSON.stringify(c.timetable || []));
-  ttDraft.forEach(r => { if (r.start == null) r.start = r.time || ''; if (r.end == null) r.end = ''; }); // 구버전(time) 호환
+  ttDraft.forEach(r => { if (r.start == null) r.start = r.time || ''; if (r.end == null) r.end = ''; if (!r.type) r.type = (r.title === '인터미션' ? 'intermission' : 'custom'); }); // 구버전 호환
   renderTtEditor();
   showScreen('edit-concert');
 }
@@ -1547,6 +1588,7 @@ function renderTtEditor() {
   </div>`;
   const rows = ttDraft.map((r, i) => {
     const dur = ttDurText(ttDiffMin(r.start, r.end));
+    const type = r.type || (r.title === '인터미션' ? 'intermission' : 'custom');
     const sH = (r.start || '').split(':')[0] || '', sM = (r.start || '').split(':')[1] || '';
     const eH = (r.end || '').split(':')[0] || '', eM = (r.end || '').split(':')[1] || '';
     return `
@@ -1565,15 +1607,39 @@ function renderTtEditor() {
           삭제
         </button>
       </div>
-      <input class="ef-input mb-2" value="${esc(r.title)}" placeholder="제목" oninput="updateTtField(${i},'title',this.value)">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
+        <label class="ef-check"><input type="checkbox" ${type === 'custom' ? 'checked' : ''} onchange="setTtType(${i},'custom')">직접입력</label>
+        <label class="ef-check"><input type="checkbox" ${type === 'intermission' ? 'checked' : ''} onchange="setTtType(${i},'intermission')">인터미션</label>
+        <label class="ef-check"><input type="checkbox" ${type === 'band' ? 'checked' : ''} onchange="setTtType(${i},'band')">밴드명</label>
+      </div>
+      ${type === 'band'
+        ? `<select class="ef-input mb-2" onchange="setTtBand(${i},this.value)">${ttBandOpts(r.bandId)}</select>`
+        : type === 'intermission'
+          ? `<input class="ef-input mb-2" value="인터미션" disabled style="opacity:.65">`
+          : `<input class="ef-input mb-2" value="${esc(r.title)}" placeholder="제목" oninput="updateTtField(${i},'title',this.value)">`}
       <input class="ef-input" value="${esc(r.desc)}" placeholder="설명 (선택)" oninput="updateTtField(${i},'desc',this.value)">
     </div>`;
   }).join('');
   host.innerHTML = summary + rows;
 }
-function addTtRow() { ttDraft.push({ start:'', end:'', title:'', desc:'', accent:'blue' }); renderTtEditor(); }
+function addTtRow() { ttDraft.push({ start:'', end:'', title:'', desc:'', accent:'blue', type:'custom' }); renderTtEditor(); }
 function removeTtRow(i) { ttDraft.splice(i, 1); renderTtEditor(); }
 function updateTtField(i, key, val) { if (ttDraft[i]) ttDraft[i][key] = val; }
+// 타임테이블 유형 (직접입력/인터미션/밴드명)
+function ttBandOpts(sel) { let o = '<option value="">밴드 선택</option>'; teams.forEach(t => { o += `<option value="${esc(t.id)}" ${t.id === sel ? 'selected' : ''}>${esc(t.name) || '(이름 없음)'}</option>`; }); return o; }
+function setTtType(i, type) {
+  const r = ttDraft[i]; if (!r) return;
+  r.type = type;
+  if (type === 'intermission') { r.title = '인터미션'; r.accent = 'muted'; }
+  else if (type === 'band') { r.accent = 'orange'; const t = teams.find(x => x.id === r.bandId) || teams[0]; if (t) { r.bandId = t.id; r.title = t.name; } }
+  else { if (r.accent === 'muted') r.accent = 'blue'; }
+  renderTtEditor();
+}
+function setTtBand(i, teamId) {
+  const r = ttDraft[i]; if (!r) return;
+  r.bandId = teamId; const t = teams.find(x => x.id === teamId); r.title = t ? t.name : ''; r.accent = 'orange';
+  renderTtEditor();
+}
 // 시/분 드롭다운 옵션 (분은 5분 단위)
 function ttHourOpts(sel) { let o = '<option value="">시</option>'; for (let h = 0; h < 24; h++) { const v = String(h).padStart(2, '0'); o += `<option value="${v}" ${v === sel ? 'selected' : ''}>${v}시</option>`; } return o; }
 function ttMinOpts(sel) { let o = '<option value="">분</option>'; for (let m = 0; m < 60; m += 5) { const v = String(m).padStart(2, '0'); o += `<option value="${v}" ${v === sel ? 'selected' : ''}>${v}분</option>`; } return o; }
@@ -2337,8 +2403,53 @@ function saveStageInfo() {
   goBack();
 }
 
+// ===== 준비 체크리스트 =====
+const DEFAULT_CHECKLIST = [
+  { id: 'c1', text: '무대 배치도(스테이지 플롯) 확정', done: false },
+  { id: 'c2', text: '팀별 인풋리스트 취합', done: false },
+  { id: 'c3', text: '셋리스트 최종 확정', done: false },
+  { id: 'c4', text: '백라인(공용 장비) 확인', done: false },
+  { id: 'c5', text: '사운드체크 일정 공유', done: false },
+  { id: 'c6', text: '로드인/반입 시간 공지', done: false },
+];
+let checklist = JSON.parse(JSON.stringify(DEFAULT_CHECKLIST));
+function loadChecklist() { try { const raw = localStorage.getItem('checklist'); if (raw) { const s = JSON.parse(raw); if (Array.isArray(s)) checklist = s; } } catch (e) {} }
+function persistChecklist() { try { localStorage.setItem('checklist', JSON.stringify(checklist)); } catch (e) {} }
+
+function renderChecklist() {
+  const host = document.getElementById('checklist');
+  if (!host) return;
+  if (!checklist.length) {
+    host.innerHTML = '<div class="px-4 py-8 text-center text-[13px] text-ios-secondary">항목이 없습니다. 위에서 추가하세요.</div>';
+  } else {
+    host.innerHTML = checklist.map((it, i) => `
+      <div class="px-4 py-3 flex items-center gap-3 border-b border-ios-gray2 last:border-0">
+        <input type="checkbox" ${it.done ? 'checked' : ''} onchange="toggleChecklist(${i},this.checked)" style="width:20px;height:20px;accent-color:#34C759;flex-shrink:0;cursor:pointer">
+        <span class="flex-1 text-[15px] ${it.done ? 'line-through text-ios-gray3' : 'text-ios-label'}">${esc(it.text)}</span>
+        <button onclick="removeChecklistItem(${i})" class="text-ios-red btn-press p-1 flex-shrink-0" aria-label="삭제"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      </div>`).join('');
+  }
+  const done = checklist.filter(c => c.done).length;
+  const total = checklist.length;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  const prog = document.getElementById('chkProgress'); if (prog) prog.textContent = `${done} / ${total} 완료 (${pct}%)`;
+  const bar = document.getElementById('chkBar'); if (bar) bar.style.width = pct + '%';
+}
+function addChecklistItem() {
+  const inp = document.getElementById('chkInput');
+  const text = inp ? inp.value.trim() : '';
+  if (!text) return;
+  checklist.push({ id: 'c' + Date.now(), text, done: false });
+  if (inp) inp.value = '';
+  persistChecklist();
+  renderChecklist();
+}
+function toggleChecklist(i, val) { if (checklist[i]) { checklist[i].done = val; persistChecklist(); renderChecklist(); } }
+function removeChecklistItem(i) { checklist.splice(i, 1); persistChecklist(); renderChecklist(); }
+
 // ===== INIT =====
 loadConcertInfo();
+loadChecklist();
 loadStageInfo();
 loadHousePos();
 housePlot = buildHousePlot(stageInfo.sound); // 음향 설정 → 무대 배치 요소 생성
@@ -2353,6 +2464,58 @@ loadInputMap();           // 인풋 채널(마이크/DI·연결·비고) 설정
 buildAllStagePlots();     // 팀 구성(comp) → 무대배치 요소 생성
 loadStagePlots();         // 저장된 드래그 위치 덮어쓰기
 switchTechBand(0);        // 기본 팀: 블루문 (무대배치도 + 인풋리스트 렌더링)
+
+// ===== 전체 데이터 재로딩 + 재렌더 (원격 변경 수신 시) =====
+function reloadAndRender() {
+  loadConcertInfo(); loadStageInfo(); loadHousePos();
+  loadTeams(); normalizeTeamComp();
+  loadStageHidden(); loadInputMap(); loadChecklist();
+  housePlot = buildHousePlot(stageInfo.sound);
+  buildAllStagePlots(); loadStagePlots();
+  syncAllTeamNames();
+  renderHome(); renderConcertInfo();
+  const idx = TECH_BANDS.indexOf(currentTechBand);
+  switchTechBand(idx >= 0 ? idx : 0);
+  if (currentScreen === 'setlist') renderSetlist();
+  if (currentScreen === 'checklist') renderChecklist();
+}
+
+// ===== 실시간 동기화 (Firebase Realtime Database) =====
+(function setupCloudSync() {
+  if (!FIREBASE_CONFIG.databaseURL || typeof firebase === 'undefined') {
+    console.info('[sync] 로컬 전용 모드 (Firebase 설정 없음). 사용자 간 실시간 공유를 원하면 FIREBASE_CONFIG를 채우세요.');
+    return;
+  }
+  try { firebase.initializeApp(FIREBASE_CONFIG); } catch (e) {}
+  const db = firebase.database();
+  const SYNC_KEYS = ['concertInfo', 'teams', 'stagePlots', 'housePos', 'stageHidden', 'inputMap', 'stageInfo', 'checklist'];
+  let applyingRemote = false;
+
+  // 로컬 저장 → 클라우드 푸시 (localStorage.setItem 후킹)
+  const origSet = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = function (k, v) {
+    origSet(k, v);
+    if (!applyingRemote && SYNC_KEYS.indexOf(k) !== -1) {
+      db.ref('shared/' + k).set(v).catch(() => {});
+    }
+  };
+
+  // 최초 1회: 로컬에 이미 있는 값을 클라우드가 비어있으면 업로드(시드)
+  SYNC_KEYS.forEach((k) => {
+    const ref = db.ref('shared/' + k);
+    ref.once('value').then((snap) => {
+      if (snap.val() == null) { const local = localStorage.getItem(k); if (local != null) ref.set(local).catch(() => {}); }
+    }).catch(() => {});
+    // 실시간 수신 → 로컬 반영 + 재렌더
+    ref.on('value', (snap) => {
+      const v = snap.val();
+      if (v == null || v === localStorage.getItem(k)) return;
+      applyingRemote = true; origSet(k, v); applyingRemote = false;
+      reloadAndRender();
+    });
+  });
+  console.info('[sync] 실시간 동기화 활성화');
+})();
 </script>
 </body>
 </html>
