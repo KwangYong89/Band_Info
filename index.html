@@ -153,6 +153,9 @@
     </button>
     <div id="navTitle" class="font-semibold text-[17px] text-ios-label tracking-tight">🎸 테크라이더</div>
     <div class="flex justify-end items-center gap-1">
+      <button onclick="installApp()" aria-label="바로가기 추가 (앱 설치)" class="text-ios-blue btn-press p-1">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M12 3v11m0 0l-4-4m4 4l4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
       <button id="themeToggle" onclick="toggleTheme()" aria-label="라이트/다크 모드 전환" class="text-ios-blue btn-press p-1">
         <!-- 라이트 모드일 때 표시: 달 (탭하면 다크로) -->
         <svg id="iconMoon" width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -245,27 +248,14 @@
 
   </div>
 
-  <!-- 빠른 현황 -->
+  <!-- 체크리스트 (홈 요약) -->
   <div class="mb-4">
-    <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">빠른 현황</h3>
-    <div class="card divide-y divide-ios-gray2">
-      <div class="card-row flex items-center justify-between px-4 py-3">
-        <span class="text-[15px] text-ios-label">사운드 체크</span>
-        <span class="badge bg-ios-orange bg-opacity-15 text-ios-orange">준비중</span>
-      </div>
-      <div class="card-row flex items-center justify-between px-4 py-3">
-        <span class="text-[15px] text-ios-label">무대 배치 확정</span>
-        <span class="badge bg-ios-green bg-opacity-15 text-ios-green">완료</span>
-      </div>
-      <div class="card-row flex items-center justify-between px-4 py-3">
-        <span class="text-[15px] text-ios-label">채널 맵 제출</span>
-        <span class="badge bg-ios-green bg-opacity-15 text-ios-green">완료</span>
-      </div>
-      <div class="card-row flex items-center justify-between px-4 py-3">
-        <span class="text-[15px] text-ios-label">리허설 스케줄</span>
-        <span class="badge bg-ios-red bg-opacity-15 text-ios-red">미확정</span>
-      </div>
+    <div class="flex items-center justify-between px-1 mb-2">
+      <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider">체크리스트</h3>
+      <button onclick="showScreen('checklist')" class="text-[12px] text-ios-blue font-semibold btn-press">전체 보기 ›</button>
     </div>
+    <div id="homeChkAlarm" class="hidden mb-2"></div>
+    <div id="homeChecklist" class="card divide-y divide-ios-gray2"></div>
   </div>
 
   <!-- 공지사항 -->
@@ -691,6 +681,8 @@
   </div>
   <!-- 진행 바 -->
   <div class="px-1 mb-3"><div class="progress-bar"><div id="chkBar" class="progress-fill" style="width:0%"></div></div></div>
+  <!-- 일정 임박 알람 -->
+  <div id="chkAlarm" class="hidden mb-3"></div>
   <!-- 항목 추가 -->
   <div class="card p-3 mb-3 space-y-2">
     <input id="chkInput" type="text" class="ef-input" placeholder="할 일 (직접 입력)" onkeydown="if(event.key==='Enter')addChecklistItem()">
@@ -729,6 +721,17 @@
     </button>
   </div>
 </nav>
+
+<!-- 설치 안내 시트 -->
+<div id="installModal" class="hidden fixed inset-0 z-[200] flex items-end sm:items-center justify-center" style="background:rgba(0,0,0,0.4)" onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="card w-full rounded-t-2xl sm:rounded-2xl p-5" style="max-width:480px">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-[16px] font-bold text-ios-label">바로가기 추가</h3>
+      <button onclick="document.getElementById('installModal').classList.add('hidden')" class="text-[15px] text-ios-blue font-medium btn-press">닫기</button>
+    </div>
+    <p id="installMsg" class="text-[14px] text-ios-secondary leading-relaxed"></p>
+  </div>
+</div>
 
 <!-- 실시간 동기화용 Firebase (compat) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -841,6 +844,7 @@ function _activateScreen(id) {
   // 셋리스트 진입 시 팀 정보의 Set List를 최신으로 반영
   if (id === 'setlist' && typeof renderSetlist === 'function') renderSetlist();
   if (id === 'checklist' && typeof renderChecklist === 'function') renderChecklist();
+  if (id === 'home' && typeof renderHome === 'function') renderHome();
   updateNav(id);
   window.scrollTo({top: 0, behavior: 'smooth'});
 }
@@ -1413,9 +1417,12 @@ function renderHome() {
   set('heroVenue', c.venue);
   set('heroTeams', c.teams);
   set('heroMembers', c.members);
-  const prog = computeProgress(c);
-  set('heroProgressLabel', prog + '%');
+  // 준비 진행률 = 체크리스트 완료율 연동
+  const cDone = checklist.filter(x => x.done).length, cTotal = checklist.length;
+  const prog = cTotal ? Math.round(cDone / cTotal * 100) : 0;
+  set('heroProgressLabel', `${prog}% · ${cDone}/${cTotal}`);
   const fill = document.getElementById('heroProgressFill'); if (fill) fill.style.width = prog + '%';
+  renderHomeChecklist();
   // 부제 없으면 윗줄 숨김
   const subWrap = document.getElementById('heroSubtitleWrap');
   if (subWrap) subWrap.style.display = c.subtitle ? '' : 'none';
@@ -2401,6 +2408,58 @@ function ddayBadge(due, done) {
   else if (label === 'D-DAY' || /^D-[0-3]$/.test(label)) cls = 'bg-ios-orange bg-opacity-10 text-ios-orange'; // 임박
   return `<span class="badge ${cls} text-[10px] flex-shrink-0">${label}</span>`;
 }
+// 오늘 기준 남은 일수
+function daysUntil(due) {
+  if (!due) return null;
+  const [y, m, d] = due.split('-').map(Number);
+  if (!(y && m && d)) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const t = new Date(y, m - 1, d); t.setHours(0, 0, 0, 0);
+  return Math.round((t - today) / 86400000);
+}
+// 일정 임박 알람 (미완료 + 기한 ≤10일): 10일 노랑 / 3일 주황 / 경과 빨강
+function renderChkAlarm(hostId) {
+  const el = document.getElementById(hostId);
+  if (!el) return;
+  const arr = checklist
+    .filter(c => !c.done && c.due)
+    .map(c => ({ c, d: daysUntil(c.due) }))
+    .filter(x => x.d != null && x.d <= 10)
+    .sort((a, b) => a.d - b.d);
+  if (!arr.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  const minD = arr[0].d;
+  let color, tint;
+  if (minD < 0) { color = '#FF3B30'; tint = 'rgba(255,59,48,0.10)'; }        // 경과 → 빨강
+  else if (minD <= 3) { color = '#FF9500'; tint = 'rgba(255,149,0,0.12)'; } // 3일 → 주황
+  else { color = '#E0A800'; tint = 'rgba(255,204,0,0.18)'; }                // 10일 → 노랑
+  const top = arr[0].c;
+  const more = arr.length > 1 ? ` 외 ${arr.length - 1}건` : '';
+  el.classList.remove('hidden');
+  el.innerHTML = `<div class="rounded-lg px-3 py-2.5 flex items-center gap-2" style="background:${tint};border-left:4px solid ${color}">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke="${color}" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v4M12 17h.01" stroke="${color}" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="text-[13px] text-ios-label font-medium min-w-0 truncate">임박 일정: ${esc(top.text)} <span style="color:${color};font-weight:700">${computeDday(top.due)}</span>${more}</span>
+  </div>`;
+}
+// 홈 화면 체크리스트 요약 + 알람
+function renderHomeChecklist() {
+  const host = document.getElementById('homeChecklist');
+  if (host) {
+    if (!checklist.length) {
+      host.innerHTML = '<div class="px-4 py-4 text-center text-[13px] text-ios-secondary">체크리스트가 비어 있습니다.</div>';
+    } else {
+      host.innerHTML = checklist.map(it => {
+        const status = it.done
+          ? '<span class="badge bg-ios-green bg-opacity-15 text-ios-green">완료</span>'
+          : '<span class="badge bg-ios-orange bg-opacity-15 text-ios-orange">진행중</span>';
+        return `<div class="card-row flex items-center justify-between gap-2 px-4 py-3">
+          <span class="text-[15px] min-w-0 truncate ${it.done ? 'text-ios-gray3 line-through' : 'text-ios-label'}">${esc(it.text)}</span>
+          <span class="flex items-center gap-1.5 flex-shrink-0">${ddayBadge(it.due, it.done)}${status}</span>
+        </div>`;
+      }).join('');
+    }
+  }
+  renderChkAlarm('homeChkAlarm');
+}
 function renderChecklist() {
   const host = document.getElementById('checklist');
   if (!host) return;
@@ -2430,6 +2489,7 @@ function renderChecklist() {
   const pct = total ? Math.round(done / total * 100) : 0;
   const prog = document.getElementById('chkProgress'); if (prog) prog.textContent = `${done} / ${total} 완료 (${pct}%)`;
   const bar = document.getElementById('chkBar'); if (bar) bar.style.width = pct + '%';
+  renderChkAlarm('chkAlarm');   // 임박 알람
 }
 function addChecklistItem() {
   const inp = document.getElementById('chkInput');
@@ -2446,6 +2506,34 @@ function addChecklistItem() {
 }
 function toggleChecklist(i, val) { if (checklist[i]) { checklist[i].done = val; persistChecklist(); renderChecklist(); } }
 function removeChecklistItem(i) { checklist.splice(i, 1); persistChecklist(); renderChecklist(); }
+
+// ===== 앱 설치 / 바로가기 추가 (PWA) =====
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
+window.addEventListener('appinstalled', () => { deferredPrompt = null; showToast('바로가기가 추가되었어요'); });
+
+function isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+function isiOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function showInstallGuide(kind) {
+  const msgs = {
+    ios: 'Safari 하단의 공유 버튼(□↑)을 누른 뒤 "홈 화면에 추가"를 선택하면 바로가기 아이콘이 생성됩니다.',
+    desktop: '브라우저 주소창 오른쪽의 설치 아이콘(⊕) 또는 메뉴(⋮) → "앱 설치"를 누르면 바탕화면에 바로가기가 생성됩니다.'
+  };
+  const el = document.getElementById('installMsg');
+  if (el) el.textContent = msgs[kind] || msgs.desktop;
+  const m = document.getElementById('installModal'); if (m) m.classList.remove('hidden');
+}
+async function installApp() {
+  if (isStandalone()) { showToast('이미 설치되어 있어요'); return; }
+  if (deferredPrompt) {                       // Android/데스크톱 Chrome·Edge: 네이티브 설치 프롬프트
+    deferredPrompt.prompt();
+    try { await deferredPrompt.userChoice; } catch (e) {}
+    deferredPrompt = null;
+    return;
+  }
+  if (isiOS()) { showInstallGuide('ios'); return; }   // iOS Safari: 프롬프트 API 없음 → 안내
+  showInstallGuide('desktop');                         // 그 외: 수동 설치 안내
+}
 
 // ===== INIT =====
 loadConcertInfo();
