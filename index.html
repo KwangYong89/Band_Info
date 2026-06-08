@@ -44,6 +44,9 @@
     .seg-ind { position: absolute; left: 0; top: 0; width: 0; height: 0; background: #fff; border-radius: 8px; box-shadow: 0 1px 8px rgba(0,0,0,.08); opacity: 0; z-index: 0; pointer-events: none; transition: transform .28s cubic-bezier(.22,.61,.36,1), width .28s cubic-bezier(.22,.61,.36,1), height .28s ease, opacity .15s ease; }
     .dark .seg-ind { background: #48484A; }
     @media (prefers-reduced-motion: reduce) { .seg-ind { transition: opacity .1s; } }
+    /* 팀명 탭: 길면 2줄로 줄바꿈하되 박스 높이는 고정 */
+    .tab-2line { display: flex; align-items: center; justify-content: center; text-align: center; height: 36px; padding-top: 0; padding-bottom: 0; }
+    .tab-2line > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; line-height: 1.15; word-break: keep-all; overflow-wrap: anywhere; }
     .btn-press:active { opacity: 0.6; transform: scale(0.97); transition: all 0.1s; }
     .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
     .stage-grid { display: grid; gap: 8px; }
@@ -117,6 +120,12 @@
     /* ===== 홈 히어로 포스터 레이어 ===== */
     .hero-poster { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0.5; pointer-events: none; }
 
+    /* ===== 접기/펼치기 height 애니메이션 (JS가 px height 지정) ===== */
+    #homeBody { transition: height .32s cubic-bezier(.22,.61,.36,1), opacity .25s ease; }
+    @media (prefers-reduced-motion: reduce) { #homeBody { transition: none; } }
+    /* 종료된 공연: 회색 + 꺼진 듯한 불투명 */
+    .concert-ended { filter: grayscale(0.7); opacity: 0.5; }
+
     /* ===== 편집 폼 (iOS 스타일 입력) ===== */
     .ef-label { display: block; font-size: 12px; font-weight: 600; color: #636366; margin-bottom: 4px; }
     .ef-input { width: 100%; box-sizing: border-box; background: #F2F2F7; border: 1.5px solid transparent; border-radius: 10px; padding: 9px 11px; font-size: 14px; color: #1C1C1E; outline: none; transition: border-color .15s, background .15s; color-scheme: light; }
@@ -176,39 +185,12 @@
 <!-- ===================================== -->
 <div id="screen-home" class="screen active pt-4">
 
-  <!-- Hero Card: 현재 공연 -->
-  <div id="heroCard" class="card p-5 mb-4 relative overflow-hidden">
-    <div id="heroDeco" class="absolute top-0 right-0 w-40 h-40 rounded-full bg-ios-blue opacity-5 -translate-y-10 translate-x-10"></div>
-    <div id="heroPoster" class="hero-poster hidden"></div>
-    <div class="relative z-10">
-      <div class="flex items-start justify-between mb-3">
-        <span class="badge bg-ios-green text-white">● UPCOMING</span>
-        <span id="heroDday" class="text-xs text-ios-secondary font-medium">D-12</span>
-      </div>
-      <h2 class="text-[22px] font-bold text-ios-label leading-tight mb-1"><span id="heroSubtitleWrap"><span id="heroSubtitle">연합 밴드 페스티벌</span><br/></span><span id="heroName">SUMMER GROOVE 2026</span></h2>
-      <div class="mt-3 space-y-1.5">
-        <div class="flex items-center gap-2 text-sm text-ios-secondary">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#636366" stroke-width="1.8"/><path d="M8 2v4M16 2v4M3 10h18" stroke="#636366" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <span id="heroDate" class="font-medium text-ios-label">2026년 6월 18일 (목) · 18:00~22:30</span>
-        </div>
-        <div class="flex items-center gap-2 text-sm text-ios-secondary">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="#636366" stroke-width="1.8"/><circle cx="12" cy="9" r="2.5" stroke="#636366" stroke-width="1.8"/></svg>
-          <span id="heroVenue" class="font-medium text-ios-label">홍대 V-HALL 대공연장</span>
-        </div>
-        <div class="flex items-center gap-2 text-sm text-ios-secondary">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#636366" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="#636366" stroke-width="1.8"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="#636366" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <span>참여 팀 <strong id="heroTeams" class="text-ios-label">4개 밴드</strong> · 총 <strong id="heroMembers" class="text-ios-label">23명</strong></span>
-        </div>
-      </div>
-      <!-- Progress -->
-      <div class="mt-4">
-        <div class="flex justify-between text-xs text-ios-secondary mb-1.5">
-          <span>준비 진행률</span><span id="heroProgressLabel" class="text-ios-blue font-semibold">75%</span>
-        </div>
-        <div class="progress-bar"><div id="heroProgressFill" class="progress-fill" style="width:75%"></div></div>
-      </div>
-    </div>
-  </div>
+  <!-- Hero Cards: 공연 목록 (설정 → 공연 정보 추가 시 카드 생성) -->
+  <div id="heroCards" class="mb-4 space-y-3"></div>
+
+  <!-- 펼쳐진(활성) 공연의 상세 영역 — 공연 카드를 접으면 함께 접힘(애니메이션) -->
+  <div id="homeBody">
+  <div class="collapsible-inner">
 
   <!-- 3 Action Buttons -->
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
@@ -260,18 +242,21 @@
 
   <!-- 공지사항 -->
   <div>
-    <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">최근 공지</h3>
-    <div class="card px-4 py-3 flex gap-3">
-      <div class="w-8 h-8 rounded-full bg-ios-blue bg-opacity-10 flex items-center justify-center flex-shrink-0 mt-0.5">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-      <div>
-        <p class="text-[14px] font-medium text-ios-label">입·퇴장 동선 변경 안내</p>
-        <p class="text-[13px] text-ios-secondary mt-0.5">6/15(월) 리허설 시 백스테이지 동선이 변경되었습니다. 공연 정보 탭을 확인해주세요.</p>
-        <p class="text-xs text-ios-gray3 mt-1.5">2026.06.05</p>
-      </div>
+    <div class="flex items-center justify-between px-1 mb-2">
+      <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider">최근 공지</h3>
+      <button onclick="showScreen('notices')" class="text-[12px] text-ios-blue font-semibold btn-press">더 보기 ›</button>
     </div>
+    <div id="homeNotice"></div>
   </div>
+
+  <!-- 다른(접힌) 진행중 공연 목록 — 최근 공지 아래에 표시 -->
+  <div id="otherConcerts"></div>
+
+  </div><!-- /collapsible-inner -->
+  </div><!-- /homeBody -->
+
+  <!-- 종료된 공연 — 최하단 (비활성·회색) -->
+  <div id="endedConcerts"></div>
 
 </div><!-- /screen-home -->
 
@@ -284,7 +269,9 @@
   <!-- 공연 상세 -->
   <div class="flex items-center justify-between px-1 mb-2">
     <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider">공연 상세</h3>
-    <button onclick="openEditConcert()" class="text-[13px] text-ios-blue font-semibold btn-press">수정</button>
+    <button onclick="openEditConcert()" aria-label="공연 정보 수정" class="text-ios-blue btn-press">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
   </div>
   <div id="ciDetails" class="card mb-4 divide-y divide-ios-gray2"></div>
 
@@ -389,9 +376,13 @@
   </div>
 
   <!-- 저장 / 취소 -->
-  <div class="flex gap-3 mb-8">
+  <div class="flex gap-3 mb-3">
     <button onclick="goBack()" class="flex-1 py-3 rounded-ios bg-ios-gray2 text-ios-label font-semibold btn-press">취소</button>
     <button onclick="saveConcert()" class="flex-1 py-3 rounded-ios bg-ios-blue text-white font-semibold btn-press">저장</button>
+  </div>
+  <!-- 공연 삭제 (공연이 2개 이상일 때만) -->
+  <div id="efDeleteWrap" class="mb-8 hidden">
+    <button onclick="deleteConcert()" class="w-full py-3 rounded-ios bg-ios-red bg-opacity-10 text-ios-red font-semibold btn-press">이 공연 삭제</button>
   </div>
 
 </div><!-- /screen-edit-concert -->
@@ -488,12 +479,7 @@
 
   <!-- 팀(밴드) 선택 -->
   <div class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">팀 선택</div>
-  <div id="techBandTabs" class="seg flex gap-0 mb-4 bg-ios-gray2 rounded-[10px] p-1">
-    <button onclick="switchTechBand(0)" id="techbandtab-0" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all bg-white text-ios-blue shadow-ios-sm">블루문</button>
-    <button onclick="switchTechBand(1)" id="techbandtab-1" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all text-ios-secondary">레드노이즈</button>
-    <button onclick="switchTechBand(2)" id="techbandtab-2" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all text-ios-secondary">그린웨이브</button>
-    <button onclick="switchTechBand(3)" id="techbandtab-3" class="flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-all text-ios-secondary">나이트폴</button>
-  </div>
+  <div id="techBandTabs" class="seg flex gap-1 mb-4 bg-ios-gray2 rounded-[10px] p-1 overflow-x-auto"></div>
 
   <!-- Sub-tabs: Stage Plot / Input List / Output -->
   <div id="techSubTabs" class="seg flex gap-0 mb-4 bg-ios-gray2 rounded-[10px] p-1">
@@ -648,8 +634,8 @@
   </div>
   <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">공연 정보 편집</h3>
   <div class="card mb-4 divide-y divide-ios-gray2">
-    <button onclick="openEditConcert()" class="px-4 py-3 flex items-center justify-between w-full btn-press">
-      <span class="text-[15px] text-ios-blue">공연 정보 수정</span>
+    <button onclick="addConcert()" class="px-4 py-3 flex items-center justify-between w-full btn-press">
+      <span class="text-[15px] text-ios-blue">공연 정보 추가</span>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#D1D1D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <button onclick="openTeamInfo()" class="px-4 py-3 flex items-center justify-between w-full btn-press">
@@ -660,13 +646,13 @@
       <span class="text-[15px] text-ios-blue">무대 정보</span>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#D1D1D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
-    <button class="px-4 py-3 flex items-center justify-between w-full btn-press">
-      <span class="text-[15px] text-ios-blue">채널 맵 내보내기 (PDF)</span>
+    <button onclick="openNotices()" class="px-4 py-3 flex items-center justify-between w-full btn-press">
+      <span class="text-[15px] text-ios-blue">공지 수정</span>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#D1D1D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
   </div>
   <div class="card mb-6 px-4 py-3 text-center">
-    <p class="text-[12px] text-ios-secondary">테크라이더 매니저 · SUMMER GROOVE 2026<br/>Made with ♪ for live music</p>
+    <p class="text-[12px] text-ios-secondary">테크라이더 플래너<br/>Made by YONG</p>
   </div>
 </div>
 
@@ -696,6 +682,30 @@
   <div id="checklist" class="card overflow-hidden mb-6"></div>
 </div><!-- /screen-checklist -->
 
+
+<!-- ===================================== -->
+<!-- SCREEN: 공지 수정                       -->
+<!-- ===================================== -->
+<div id="screen-notice-edit" class="screen pt-4">
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">공지 추가</h3>
+  <div class="card p-4 mb-4 space-y-2">
+    <input id="ntTitle" type="text" class="ef-input" placeholder="공지 제목" />
+    <textarea id="ntBody" class="ef-input" rows="3" placeholder="공지 내용"></textarea>
+    <button onclick="addNotice()" class="w-full py-2.5 rounded-ios bg-ios-blue text-white font-semibold btn-press">공지 추가</button>
+  </div>
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">등록된 공지</h3>
+  <div id="noticeEditor" class="space-y-3 mb-6"></div>
+</div><!-- /screen-notice-edit -->
+
+
+<!-- ===================================== -->
+<!-- SCREEN: 공지 내역                       -->
+<!-- ===================================== -->
+<div id="screen-notices" class="screen pt-4">
+  <h3 class="text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2">공지 내역</h3>
+  <div id="noticesList" class="space-y-3 mb-6"></div>
+</div><!-- /screen-notices -->
+
 <!-- ===== BOTTOM TAB BAR ===== -->
 <nav class="nav-blur fixed bottom-0 left-0 right-0 z-50 border-t border-ios-gray2" style="padding-bottom: env(safe-area-inset-bottom)">
   <div class="max-w-4xl mx-auto flex">
@@ -722,21 +732,19 @@
   </div>
 </nav>
 
-<!-- 설치 안내 시트 -->
-<div id="installModal" class="hidden fixed inset-0 z-[200] flex items-end sm:items-center justify-center" style="background:rgba(0,0,0,0.4)" onclick="if(event.target===this)this.classList.add('hidden')">
+<!-- 바로가기 생성 확인 -->
+<div id="installModal" class="hidden fixed inset-0 z-[200] flex items-end sm:items-center justify-center" style="background:rgba(0,0,0,0.4)" onclick="if(event.target===this)closeInstall()">
   <div class="card w-full rounded-t-2xl sm:rounded-2xl p-5" style="max-width:480px">
-    <div class="flex items-center justify-between mb-2">
-      <h3 class="text-[16px] font-bold text-ios-label">바로가기 추가</h3>
-      <button onclick="document.getElementById('installModal').classList.add('hidden')" class="text-[15px] text-ios-blue font-medium btn-press">닫기</button>
+    <h3 class="text-[16px] font-bold text-ios-label mb-1">바로가기 추가</h3>
+    <p id="installMsg" class="text-[14px] text-ios-secondary leading-relaxed mb-4">홈 화면(모바일) · 바탕화면(PC)에 바로가기를 생성하시겠습니까?</p>
+    <div class="flex gap-3">
+      <button onclick="closeInstall()" class="flex-1 py-3 rounded-ios bg-ios-gray2 text-ios-label font-semibold btn-press">아니오</button>
+      <button onclick="consentInstall()" class="flex-1 py-3 rounded-ios bg-ios-blue text-white font-semibold btn-press">예</button>
     </div>
-    <p id="installMsg" class="text-[14px] text-ios-secondary leading-relaxed"></p>
   </div>
 </div>
 
-<!-- 실시간 동기화용 Firebase (compat) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-
+<!-- 실시간 동기화용 Firebase는 배포 환경에서만 동적 로드됩니다 (setupCloudSync) -->
 <script>
 // ===== 실시간 동기화 설정 =====
 // Firebase 콘솔(https://console.firebase.google.com) → 프로젝트 생성 → Realtime Database 생성 후
@@ -837,14 +845,16 @@ function _activateScreen(id) {
   el.classList.add('active');
   currentScreen = id;
   // 테크라이더 진입 시 무대 배치도를 최신 팀 구성으로 다시 그림 (커스텀 악기 반영)
-  if (id === 'tech-rider' && typeof renderStagePlot === 'function') {
-    renderStagePlot(currentTechBand); renderChannels(currentTechBand);
-    moveSeg(document.getElementById('techBandTabs')); moveSeg(document.getElementById('techSubTabs'));
+  if (id === 'tech-rider' && typeof renderTechRider === 'function') {
+    renderTechRider();   // 팀 목록(추가/이름변경) 반영
+    moveSeg(document.getElementById('techSubTabs'));
   }
   // 셋리스트 진입 시 팀 정보의 Set List를 최신으로 반영
   if (id === 'setlist' && typeof renderSetlist === 'function') renderSetlist();
   if (id === 'checklist' && typeof renderChecklist === 'function') renderChecklist();
+  if (id === 'notices' && typeof renderNoticesList === 'function') renderNoticesList();
   if (id === 'home' && typeof renderHome === 'function') renderHome();
+  if (id === 'concert-info' && typeof renderConcertInfo === 'function') renderConcertInfo();
   updateNav(id);
   window.scrollTo({top: 0, behavior: 'smooth'});
 }
@@ -857,6 +867,8 @@ function updateNav(id) {
     'team-info': '팀 정보',
     'stage-info': '무대 정보',
     'checklist': '체크리스트',
+    'notice-edit': '공지 수정',
+    'notices': '공지 내역',
     'setlist': 'Set List',
     'tech-rider': '테크라이더',
     'settings': '설정'
@@ -872,7 +884,7 @@ function updateNav(id) {
     backBtn.classList.remove('hidden');
     backBtn.classList.add('flex');
     const prev = screenHistory[screenHistory.length - 1];
-    const prevTitles = {'home':'홈','concert-info':'공연정보','edit-concert':'정보수정','team-info':'팀정보','stage-info':'무대정보','checklist':'체크리스트','setlist':'셋리스트','tech-rider':'테크라이더','settings':'설정'};
+    const prevTitles = {'home':'홈','concert-info':'공연정보','edit-concert':'정보수정','team-info':'팀정보','stage-info':'무대정보','checklist':'체크리스트','notice-edit':'공지수정','notices':'공지내역','setlist':'셋리스트','tech-rider':'테크라이더','settings':'설정'};
     backLabel.textContent = prevTitles[prev] || '뒤로';
   }
 
@@ -920,7 +932,7 @@ function renderSetlist() {
   if (currentSetlistIdx >= teams.length) currentSetlistIdx = 0;
   tabsHost.innerHTML = teams.map((t, i) => {
     const active = i === currentSetlistIdx;
-    return `<button onclick="switchSetlistBand(${i})" class="flex-shrink-0 px-4 py-1.5 rounded-[8px] text-[13px] font-medium transition-all whitespace-nowrap ${active ? 'text-ios-blue' : 'text-ios-secondary'}">${esc(t.name) || '(이름 없음)'}</button>`;
+    return `<button onclick="switchSetlistBand(${i})" class="flex-1 min-w-0 tab-2line px-2 rounded-[8px] text-[13px] font-medium transition-all ${active ? 'text-ios-blue' : 'text-ios-secondary'}"><span>${esc(t.name) || '(이름 없음)'}</span></button>`;
   }).join('');
   moveSeg(tabsHost);
   renderSetlistBody();
@@ -1009,14 +1021,15 @@ function inputViewRow(bandKey, e, i) {
   if (it.di) badges.push('<span class="badge bg-ios-purple bg-opacity-10 text-ios-purple">DI</span>');
   ['xlr', 'ts', 'trs', 'combo'].forEach(k => { if (c[k]) badges.push(`<span class="badge bg-ios-teal bg-opacity-10 text-ios-teal">${CONN_LABEL[k]}</span>`); });
   const badgeHtml = badges.length ? badges.join(' ') : '<span class="text-[11px] text-ios-gray3">미설정</span>';
-  const noteHtml = it.note ? `<div class="text-[11px] text-ios-secondary mt-1">📝 ${esc(it.note)}</div>` : '';
+  // 비고: 행 오른쪽 빈 공간을 채우되 좌정렬, 폰트는 16px(약간 작게)
+  const noteHtml = it.note ? `<div class="text-[16px] font-medium text-ios-label text-left flex-1 min-w-0 pl-2" style="align-self:center">${esc(it.note)}</div>` : '';
   return `<div class="px-3 py-2.5 border-b border-ios-gray2 last:border-0 flex items-start gap-2.5">
     <span class="text-[12px] font-bold text-ios-blue flex-shrink-0 text-center pt-0.5" style="width:24px">${i + 1}</span>
-    <div class="flex-1 min-w-0">
+    <div class="min-w-0">
       <div class="text-[14px] font-medium text-ios-label">${esc(e.label)}</div>
       <div class="flex flex-wrap items-center gap-1 mt-1">${badgeHtml}</div>
-      ${noteHtml}
     </div>
+    ${noteHtml}
   </div>`;
 }
 
@@ -1060,24 +1073,42 @@ function toggleInputEdit() {
   if (!inputEditing) { persistInputMap(); showToast('인풋 채널 맵을 저장했어요'); }
 }
 
-// ===== 팀(밴드)별 테크라이더 전환 =====
-function switchTechBand(idx) {
-  currentTechBand = TECH_BANDS[idx];
-  for (let i = 0; i < 4; i++) {
-    const tab = document.getElementById('techbandtab-' + i);
-    if (!tab) continue;
-    if (i === idx) {
-      tab.classList.add('bg-white', 'text-ios-blue', 'shadow-ios-sm');
-      tab.classList.remove('text-ios-secondary');
-    } else {
-      tab.classList.remove('bg-white', 'text-ios-blue', 'shadow-ios-sm');
-      tab.classList.add('text-ios-secondary');
-    }
-  }
-  document.querySelectorAll('.tech-band-name').forEach(n => n.textContent = BAND_NAMES[currentTechBand]);
+// ===== 테크라이더 팀 탭 (teams 기반 동적 생성) =====
+function renderTechBandTabs() {
+  const cont = document.getElementById('techBandTabs');
+  if (!cont) return;
+  if (!teams.length) { cont.innerHTML = ''; return; }
+  if (!teams.find(t => t.id === currentTechBand)) currentTechBand = teams[0].id;
+  cont.innerHTML = teams.map((t, i) => {
+    const active = t.id === currentTechBand;
+    return `<button id="techbandtab-${i}" onclick="switchTechBand(${i})" class="flex-1 min-w-0 tab-2line px-2 rounded-[8px] text-[13px] font-medium transition-all ${active ? 'text-ios-blue' : 'text-ios-secondary'}"><span>${esc(t.name) || '(이름 없음)'}</span></button>`;
+  }).join('');
+  const cur = teams.find(t => t.id === currentTechBand);
+  document.querySelectorAll('.tech-band-name').forEach(n => n.textContent = cur ? cur.name : '');
+  moveSeg(cont);
+}
+// 진입/갱신 시: 탭 + 콘텐츠 동기화
+function renderTechRider() {
+  renderTechBandTabs();
   renderStagePlot(currentTechBand);
   renderChannels(currentTechBand);
-  moveSeg(document.getElementById('techBandTabs'));
+}
+// 팀 전환
+function switchTechBand(idx) {
+  const t = teams[idx];
+  if (!t) return;
+  currentTechBand = t.id;
+  const cont = document.getElementById('techBandTabs');
+  if (cont) {
+    cont.querySelectorAll('button').forEach((b, i) => {
+      b.classList.toggle('text-ios-blue', i === idx);
+      b.classList.toggle('text-ios-secondary', i !== idx);
+    });
+    moveSeg(cont);
+  }
+  document.querySelectorAll('.tech-band-name').forEach(n => n.textContent = t.name);
+  renderStagePlot(currentTechBand);
+  renderChannels(currentTechBand);
   reanimate(document.querySelector('#screen-tech-rider .techpanel:not(.hidden)')); // 팀 전환 시 콘텐츠 슬라이드
 }
 
@@ -1153,7 +1184,7 @@ function renderStageLegend(bandKey) {
       : '';
     return `<div class="flex items-center gap-2 ${e.hidden ? 'opacity-40' : ''}">
       <div class="w-3 h-3 ${round ? 'rounded-full' : 'rounded-sm'} flex-shrink-0" style="background:${hex};opacity:.65"></div>
-      <span class="text-ios-secondary flex-1 min-w-0 truncate">${esc(e.label)}</span>
+      <span class="text-ios-secondary flex-1 min-w-0 truncate">${esc(e.label)}${e.name ? ' / ' + esc(e.name) : ''}</span>
       ${cb}
     </div>`;
   }).join('');
@@ -1325,7 +1356,38 @@ const DEFAULT_CONCERT = {
   poster: null, // 데이터 URL(JPEG) 또는 null
 };
 
-let concertInfo = JSON.parse(JSON.stringify(DEFAULT_CONCERT));
+function newConcertId() { return 'c-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function blankConcert() {
+  return {
+    id: newConcertId(), name: '', subtitle: '', date: '', timeStart: '', timeEnd: '', dateText: '',
+    dday: '', venue: '', capacity: '', ticket: '', teams: '', members: '', progress: 0, venueAddress: '',
+    admission: '18:00',
+    carryIn: { food: false, drink: false, alcohol: false, etc: false, etcLabel: '' },
+    parking: { available: false, freeHours: 0, allDay: false },
+    timetable: [], poster: null,
+  };
+}
+// 저장된 공연 객체를 기본값과 병합 + 누락 필드 보정
+function normalizeConcert(c) {
+  const m = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONCERT)), c || {});
+  if (!m.id) m.id = newConcertId();
+  if (!m.carryIn || typeof m.carryIn !== 'object') m.carryIn = JSON.parse(JSON.stringify(DEFAULT_CONCERT.carryIn));
+  if (!m.parking || typeof m.parking !== 'object') m.parking = JSON.parse(JSON.stringify(DEFAULT_CONCERT.parking));
+  if (typeof m.admission !== 'string') m.admission = DEFAULT_CONCERT.admission;
+  if (!Array.isArray(m.timetable)) m.timetable = [];
+  return m;
+}
+
+let concerts = [normalizeConcert(DEFAULT_CONCERT)]; // 공연 목록
+let currentConcertIdx = 0;                          // 편집/상세 대상 공연
+let concertInfo = concerts[0];                      // 현재 공연 포인터 (기존 코드 호환)
+let expandedConcertId = null;                       // 펼쳐진(활성) 공연 id (아코디언: 하나만 펼침)
+function setCurrentConcert(idx) {
+  if (idx < 0 || idx >= concerts.length) idx = 0;
+  currentConcertIdx = idx;
+  concertInfo = concerts[idx];
+}
+
 let posterDraft = null; // 편집 중 임시 포스터
 let ttDraft = [];       // 편집 중 임시 타임테이블
 
@@ -1337,20 +1399,35 @@ const TT_BADGE = {
 };
 
 function saveConcertInfo() {
-  try { localStorage.setItem('concertInfo', JSON.stringify(concertInfo)); return true; }
+  try { localStorage.setItem('concerts', JSON.stringify(concerts)); return true; }
   catch (e) { return false; }
 }
 function loadConcertInfo() {
   try {
-    const raw = localStorage.getItem('concertInfo');
-    if (!raw) return;
-    const saved = JSON.parse(raw);
-    concertInfo = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONCERT)), saved);
-    // 구버전 데이터 호환 (장소 필드 구조 변경)
-    if (!concertInfo.carryIn || typeof concertInfo.carryIn !== 'object') concertInfo.carryIn = JSON.parse(JSON.stringify(DEFAULT_CONCERT.carryIn));
-    if (!concertInfo.parking || typeof concertInfo.parking !== 'object') concertInfo.parking = JSON.parse(JSON.stringify(DEFAULT_CONCERT.parking));
-    if (typeof concertInfo.admission !== 'string') concertInfo.admission = DEFAULT_CONCERT.admission;
+    const raw = localStorage.getItem('concerts');
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length) concerts = arr.map(normalizeConcert);
+    } else {
+      // 구버전(단일 공연) 데이터 → 배열로 마이그레이션
+      const old = localStorage.getItem('concertInfo');
+      if (old) {
+        concerts = [normalizeConcert(JSON.parse(old))];
+        try { localStorage.setItem('concerts', JSON.stringify(concerts)); } catch (e) {}
+      }
+    }
   } catch (e) {}
+  if (!concerts.length) concerts = [normalizeConcert(DEFAULT_CONCERT)];
+  if (currentConcertIdx >= concerts.length) currentConcertIdx = 0;
+  concertInfo = concerts[currentConcertIdx];
+  // 펼쳐진(활성) 공연 유지 — 없거나 종료/삭제되었으면 첫 '진행중' 공연을 펼침
+  if (!expandedConcertId || !concerts.some(c => c.id === expandedConcertId && !isConcertEnded(c))) {
+    const firstUpcoming = concerts.find(c => !isConcertEnded(c));
+    expandedConcertId = firstUpcoming ? firstUpcoming.id : null;
+    if (firstUpcoming) setCurrentConcert(concerts.indexOf(firstUpcoming));
+  }
+  // 동기화 키가 비어있지 않도록 보장
+  if (!localStorage.getItem('concerts')) { try { localStorage.setItem('concerts', JSON.stringify(concerts)); } catch (e) {} }
 }
 
 function esc(s) {
@@ -1386,6 +1463,16 @@ function computeDday(dateISO) {
   return 'D+' + Math.abs(diff);
 }
 
+// 공연 종료 여부: 공연 날짜가 오늘보다 과거이면 종료(만료)
+function isConcertEnded(c) {
+  if (!c || !c.date) return false;
+  const [y, m, d] = c.date.split('-').map(Number);
+  if (!(y && m && d)) return false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const target = new Date(y, m - 1, d); target.setHours(0, 0, 0, 0);
+  return target < today; // 당일(D-DAY)은 진행중으로 간주
+}
+
 // 입력 완성도 기반 준비 진행률(%) 자동 계산
 function computeProgress(c) {
   const checks = [
@@ -1406,38 +1493,177 @@ function computeProgress(c) {
   return Math.round(done / checks.length * 100);
 }
 
-// ===== 홈 히어로 렌더링 =====
-function renderHome() {
-  const c = concertInfo;
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set('heroDday', computeDday(c.date) || c.dday || '');
-  set('heroName', c.name);
-  set('heroSubtitle', c.subtitle);
-  set('heroDate', c.dateText);
-  set('heroVenue', c.venue);
-  set('heroTeams', c.teams);
-  set('heroMembers', c.members);
-  // 준비 진행률 = 체크리스트 완료율 연동
+// ===== 홈 히어로 렌더링 (공연마다 카드 1개, 접기 가능) =====
+function concertCardHTML(c, idx, ended) {
+  const dday = computeDday(c.date) || c.dday || '';
+  // 준비 진행률 = 체크리스트 완료율 연동 (전 공연 공통)
   const cDone = checklist.filter(x => x.done).length, cTotal = checklist.length;
   const prog = cTotal ? Math.round(cDone / cTotal * 100) : 0;
-  set('heroProgressLabel', `${prog}% · ${cDone}/${cTotal}`);
-  const fill = document.getElementById('heroProgressFill'); if (fill) fill.style.width = prog + '%';
-  renderHomeChecklist();
-  // 부제 없으면 윗줄 숨김
-  const subWrap = document.getElementById('heroSubtitleWrap');
-  if (subWrap) subWrap.style.display = c.subtitle ? '' : 'none';
-  // 포스터 배경 (있으면 중앙 캡쳐 + 투명도 50%, 없으면 기존 형태)
-  const poster = document.getElementById('heroPoster');
-  const deco = document.getElementById('heroDeco');
-  if (c.poster) {
-    poster.style.backgroundImage = `url("${c.poster}")`;
-    poster.classList.remove('hidden');
-    if (deco) deco.classList.add('hidden');
-  } else {
-    poster.style.backgroundImage = '';
-    poster.classList.add('hidden');
-    if (deco) deco.classList.remove('hidden');
+  const collapsed = ended ? true : (c.id !== expandedConcertId); // 종료 공연은 항상 접힘
+  // 진행중 공연이 여럿일 때, 펼쳐진(활성) 공연은 파란 테두리로 강조
+  const activeStyle = (!ended && !collapsed && concerts.length > 1) ? ' style="outline:2px solid #007AFF;outline-offset:-2px"' : '';
+  const bg = c.poster
+    ? `<div class="hero-poster" style="background-image:url('${String(c.poster).replace(/'/g, '%27')}')"></div>`
+    : `<div class="absolute top-0 right-0 w-40 h-40 rounded-full bg-ios-blue opacity-5 -translate-y-10 translate-x-10"></div>`;
+  const titleLines = (c.subtitle ? esc(c.subtitle) + '<br/>' : '') + (esc(c.name) || '(공연명 없음)');
+  // 접어도 항상 보이는 기본 정보(일시/장소/참여팀)
+  const infoBlock = `
+    <div class="mt-3 space-y-1.5">
+      <div class="flex items-center gap-2 text-sm text-ios-secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#636366" stroke-width="1.8"/><path d="M8 2v4M16 2v4M3 10h18" stroke="#636366" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span class="font-medium text-ios-label">${esc(c.dateText) || '일시 미정'}</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-ios-secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="#636366" stroke-width="1.8"/><circle cx="12" cy="9" r="2.5" stroke="#636366" stroke-width="1.8"/></svg>
+        <span class="font-medium text-ios-label">${esc(c.venue) || '장소 미정'}</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-ios-secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#636366" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="#636366" stroke-width="1.8"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="#636366" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>참여 팀 <strong class="text-ios-label">${esc(c.teams) || '-'}</strong> · 총 <strong class="text-ios-label">${esc(c.members) || '-'}</strong></span>
+      </div>
+    </div>`;
+  // 접으면 숨겨지는 영역(진행률)
+  const progressBlock = `
+    <div class="mt-4">
+      <div class="flex justify-between text-xs text-ios-secondary mb-1.5">
+        <span>준비 진행률</span><span class="text-ios-blue font-semibold">${prog}% · ${cDone}/${cTotal}</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${prog}%"></div></div>
+    </div>`;
+  // 종료 공연은 토글 버튼 없음(비활성), 진행중 공연만 ▼ 토글
+  const toggle = ended ? '' : `<button type="button" aria-label="접기/펼치기" onclick="toggleConcertCollapse('${c.id}')" class="w-6 h-6 -ml-1 flex items-center justify-center text-ios-secondary btn-press">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="transition:transform .2s;transform:rotate(${collapsed ? '-90deg' : '0deg'})"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>`;
+  const badge = ended
+    ? `<span class="badge text-white" style="background:#8E8E93">● 종료</span>`
+    : `<span class="badge bg-ios-green text-white">● UPCOMING</span>`;
+  const cardCls = 'card p-5 relative overflow-hidden' + (ended ? ' concert-ended' : '');
+  return `<div class="${cardCls}"${activeStyle}>
+    ${bg}
+    <div class="relative z-10">
+      <div class="flex items-start justify-between mb-3">
+        <div class="flex items-center gap-2">
+          ${toggle}
+          ${badge}
+        </div>
+        <span class="text-xs text-ios-secondary font-medium">${esc(dday)}</span>
+      </div>
+      <h2 onclick="openConcertDetail(${idx})" class="text-[22px] font-bold text-ios-label leading-tight mb-1 cursor-pointer">${titleLines}</h2>
+      ${infoBlock}
+      <!-- 접어도 진행률 '공간'은 유지(visibility) → 카드/포스터 크기 변동 방지 -->
+      <div${collapsed ? ' style="visibility:hidden"' : ''}>${progressBlock}</div>
+    </div>
+  </div>`;
+}
+
+const SECTION_H3 = 'text-[13px] font-semibold text-ios-secondary uppercase tracking-wider px-1 mb-2 mt-6';
+function renderHome() {
+  // 진행중 / 종료 분리 (원래 인덱스 보존)
+  const upcoming = [], ended = [];
+  concerts.forEach((c, i) => (isConcertEnded(c) ? ended : upcoming).push({ c, i }));
+  // 펼쳐진(활성) 공연은 '진행중' 공연만 가능
+  if (expandedConcertId && !upcoming.some(o => o.c.id === expandedConcertId)) expandedConcertId = null;
+  if (expandedConcertId) {
+    const o = upcoming.find(o => o.c.id === expandedConcertId);
+    if (o) setCurrentConcert(o.i);
   }
+  const top = document.getElementById('heroCards');
+  const others = document.getElementById('otherConcerts');
+  const endedHost = document.getElementById('endedConcerts');
+  if (expandedConcertId) {
+    // 펼친(활성) 공연만 상단에, 나머지 진행중 공연은 '최근 공지' 아래로
+    const eo = upcoming.find(o => o.c.id === expandedConcertId);
+    if (top) top.innerHTML = concertCardHTML(eo.c, eo.i, false);
+    const rest = upcoming.filter(o => o.c.id !== expandedConcertId);
+    if (others) others.innerHTML = rest.length
+      ? `<h3 class="${SECTION_H3}">다른 공연</h3><div class="space-y-3">${rest.map(o => concertCardHTML(o.c, o.i, false)).join('')}</div>`
+      : '';
+  } else {
+    // 진행중 공연이 모두 접힘 → 진행중 전체를 상단에 표시
+    if (top) top.innerHTML = upcoming.map(o => concertCardHTML(o.c, o.i, false)).join('');
+    if (others) others.innerHTML = '';
+  }
+  // 종료된 공연 — 최하단 (비활성·회색)
+  if (endedHost) endedHost.innerHTML = ended.length
+    ? `<h3 class="${SECTION_H3}">종료된 공연</h3><div class="space-y-3">${ended.map(o => concertCardHTML(o.c, o.i, true)).join('')}</div>`
+    : '';
+  // 하단 영역 정적 상태 반영 (애니메이션은 toggleConcertCollapse에서 처리)
+  const body = document.getElementById('homeBody');
+  if (body) {
+    body.style.overflow = expandedConcertId ? '' : 'hidden';
+    body.style.height = expandedConcertId ? 'auto' : '0px';
+  }
+  renderHomeChecklist();
+  renderHomeNotice();
+}
+
+function reducedMotion() { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+function expandHomeBody() {
+  const el = document.getElementById('homeBody');
+  if (!el) return;
+  if (reducedMotion()) { el.style.height = 'auto'; el.style.overflow = ''; return; }
+  el.style.overflow = 'hidden';
+  el.style.height = '0px';
+  void el.offsetHeight;                       // reflow
+  el.style.height = el.scrollHeight + 'px';   // 0 → 콘텐츠 높이
+  let done = false;
+  const finish = () => { if (done) return; done = true; el.removeEventListener('transitionend', end); el.style.height = 'auto'; el.style.overflow = ''; };
+  const end = (e) => { if (e.propertyName === 'height') finish(); };
+  el.addEventListener('transitionend', end);
+  setTimeout(finish, 420);                     // transitionend 누락/미동작 대비
+}
+function collapseHomeBody(done) {
+  const el = document.getElementById('homeBody');
+  if (!el) { if (done) done(); return; }
+  if (reducedMotion()) { el.style.height = '0px'; el.style.overflow = 'hidden'; if (done) done(); return; }
+  el.style.overflow = 'hidden';
+  el.style.height = el.scrollHeight + 'px';   // 현재 높이에서 시작
+  void el.offsetHeight;                       // reflow
+  el.style.height = '0px';                     // → 0 으로 애니메이션
+  let called = false;
+  const finish = () => { if (called) return; called = true; el.removeEventListener('transitionend', end); if (done) done(); };
+  const end = (e) => { if (e.propertyName === 'height') finish(); };
+  el.addEventListener('transitionend', end);
+  setTimeout(finish, 420);                     // transitionend 누락 대비
+}
+
+function toggleConcertCollapse(id) {
+  const wasOpen = !!expandedConcertId;
+  // 아코디언: 같은 카드를 누르면 접고, 다른 카드를 누르면 그 공연만 펼침(활성화)
+  expandedConcertId = (expandedConcertId === id) ? null : id;
+  const nowOpen = !!expandedConcertId;
+  if (wasOpen && !nowOpen) {
+    collapseHomeBody(() => renderHome());     // 현재 콘텐츠 높이→0 애니메이션 후 재배치
+  } else if (!wasOpen && nowOpen) {
+    renderHome(); expandHomeBody();           // 콘텐츠 먼저 채우고 0→높이 애니메이션
+  } else {
+    renderHome();                             // 활성 공연 전환 → 애니메이션 없이 갱신
+  }
+}
+function openConcertDetail(idx) {
+  setCurrentConcert(idx);
+  renderConcertInfo();
+  showScreen('concert-info');
+}
+// 설정 → "공연 정보 추가": 새 공연 카드 생성 후 편집 화면으로
+function addConcert() {
+  concerts.push(blankConcert());
+  setCurrentConcert(concerts.length - 1);
+  expandedConcertId = concerts[currentConcertIdx].id; // 새 공연을 펼친(활성) 상태로
+  saveConcertInfo();
+  renderHome();
+  openEditConcert();
+}
+function deleteConcert() {
+  if (concerts.length <= 1) { showToast('최소 1개의 공연은 있어야 해요'); return; }
+  if (typeof confirm === 'function' && !confirm('이 공연 정보를 삭제할까요?')) return;
+  concerts.splice(currentConcertIdx, 1);
+  const firstUpcoming = concerts.find(c => !isConcertEnded(c));
+  expandedConcertId = firstUpcoming ? firstUpcoming.id : null;
+  setCurrentConcert(firstUpcoming ? concerts.indexOf(firstUpcoming) : 0);
+  saveConcertInfo();
+  renderHome(); renderConcertInfo();
+  showScreen('home');
 }
 
 // ===== 공연 정보 화면 렌더링 =====
@@ -1533,6 +1759,8 @@ function openEditConcert() {
   ttDraft = JSON.parse(JSON.stringify(c.timetable || []));
   ttDraft.forEach(r => { if (r.start == null) r.start = r.time || ''; if (r.end == null) r.end = ''; if (!r.type) r.type = (r.title === '인터미션' ? 'intermission' : 'custom'); }); // 구버전 호환
   renderTtEditor();
+  const delWrap = document.getElementById('efDeleteWrap');
+  if (delWrap) delWrap.classList.toggle('hidden', concerts.length <= 1);
   showScreen('edit-concert');
 }
 
@@ -1823,13 +2051,14 @@ function buildStageElements(team) {
   const byId = {}; existing.forEach(e => { byId[e.id] = e; });
   const els = [];
   let k = 0;
-  const push = (id, label, icon, color) => {
+  // label = 포지션(보컬1 등, 무대 표시용), name = 멤버 성명(범례 표시용)
+  const push = (id, label, icon, color, name) => {
     const prev = byId[id];
     const col = k % 3, row = Math.floor(k / 3);
     const x = prev ? prev.x : (12 + col * 28);
     const y = prev ? prev.y : (10 + row * 22);
     const hidden = !!(stageHidden[team.id] && stageHidden[team.id][id]);
-    els.push({ id, label, icon, color, x, y, hidden });
+    els.push({ id, label, icon, color, x, y, hidden, name: name || '' });
     k++;
   };
   INSTRUMENTS.forEach(inst => {
@@ -1837,7 +2066,7 @@ function buildStageElements(team) {
     const count = c ? (parseInt(c.count, 10) || 0) : 0;
     for (let n = 1; n <= count; n++) {
       const nm = (c.names && c.names[n - 1]) ? c.names[n - 1] : '';
-      push(inst.key + '-' + n, nm || (inst.short + n), inst.icon, inst.color);
+      push(inst.key + '-' + n, inst.short + n, inst.icon, inst.color, nm);
     }
   });
   (team.custom || []).forEach(cu => {
@@ -1845,7 +2074,7 @@ function buildStageElements(team) {
     const base = cu.name || '기타';
     for (let n = 1; n <= count; n++) {
       const nm = (cu.names && cu.names[n - 1]) ? cu.names[n - 1] : '';
-      push((cu.cid || 'custom') + '-' + n, nm || (base + n), 'note', 'gray');
+      push((cu.cid || 'custom') + '-' + n, base + n, 'note', 'gray', nm);
     }
   });
   return els;
@@ -1917,7 +2146,7 @@ function renderTeamTabs() {
   if (!tabs) return;
   tabs.innerHTML = teams.map((t, i) => {
     const active = i === currentTeamIdx;
-    return `<button id="teamtab-${i}" onclick="selectTeam(${i})" class="flex-shrink-0 px-4 py-1.5 rounded-[8px] text-[13px] font-medium transition-all whitespace-nowrap ${active ? 'text-ios-blue' : 'text-ios-secondary'}">${esc(t.name) || '(이름 없음)'}</button>`;
+    return `<button id="teamtab-${i}" onclick="selectTeam(${i})" class="flex-1 min-w-0 tab-2line px-2 rounded-[8px] text-[13px] font-medium transition-all ${active ? 'text-ios-blue' : 'text-ios-secondary'}"><span>${esc(t.name) || '(이름 없음)'}</span></button>`;
   }).join('');
 }
 
@@ -2394,7 +2623,17 @@ const DEFAULT_CHECKLIST = [
   { id: 'c6', text: '로드인/반입 시간 공지', done: false },
 ];
 let checklist = JSON.parse(JSON.stringify(DEFAULT_CHECKLIST));
-function loadChecklist() { try { const raw = localStorage.getItem('checklist'); if (raw) { const s = JSON.parse(raw); if (Array.isArray(s)) checklist = s; } } catch (e) {} }
+function loadChecklist() { try { const raw = localStorage.getItem('checklist'); if (raw) { const s = JSON.parse(raw); if (Array.isArray(s)) checklist = s; } } catch (e) {} sortChecklist(); }
+// 기한(날짜) 오름차순 정렬 — 기한 없는 항목은 맨 뒤
+function sortChecklist() {
+  checklist.sort((a, b) => {
+    const da = a.due || '', db = b.due || '';
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+}
 function persistChecklist() { try { localStorage.setItem('checklist', JSON.stringify(checklist)); } catch (e) {} }
 
 // 기한 → D-day 배지
@@ -2498,6 +2737,7 @@ function addChecklistItem() {
   const text = inp ? inp.value.trim() : '';
   if (!text) return;
   checklist.push({ id: 'c' + Date.now(), text, due: dueEl ? dueEl.value : '', assignee: asgEl ? asgEl.value.trim() : '', done: false });
+  sortChecklist();           // 기한순 정렬
   if (inp) inp.value = '';
   if (dueEl) dueEl.value = '';
   if (asgEl) asgEl.value = '';
@@ -2507,6 +2747,75 @@ function addChecklistItem() {
 function toggleChecklist(i, val) { if (checklist[i]) { checklist[i].done = val; persistChecklist(); renderChecklist(); } }
 function removeChecklistItem(i) { checklist.splice(i, 1); persistChecklist(); renderChecklist(); }
 
+// ===== 공지사항 =====
+const DEFAULT_NOTICES = [
+  { id: 'n1', title: '입·퇴장 동선 변경 안내', body: '6/15(월) 리허설 시 백스테이지 동선이 변경되었습니다. 공연 정보 탭을 확인해주세요.', date: '2026.06.05', ts: 1 },
+];
+let notices = JSON.parse(JSON.stringify(DEFAULT_NOTICES));
+function todayStr() { const d = new Date(); return d.getFullYear() + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + String(d.getDate()).padStart(2, '0'); }
+function sortNotices() { notices.sort((a, b) => { if (a.date !== b.date) return a.date < b.date ? 1 : -1; return (b.ts || 0) - (a.ts || 0); }); } // 최신순
+function loadNotices() { try { const raw = localStorage.getItem('notices'); if (raw) { const s = JSON.parse(raw); if (Array.isArray(s)) notices = s; } } catch (e) {} sortNotices(); }
+function persistNotices() { try { localStorage.setItem('notices', JSON.stringify(notices)); } catch (e) {} }
+
+function openNotices() { renderNoticeEditor(); showScreen('notice-edit'); }
+function addNotice() {
+  const t = document.getElementById('ntTitle'), b = document.getElementById('ntBody');
+  const title = t ? t.value.trim() : '';
+  if (!title) { showToast('제목을 입력하세요'); return; }
+  notices.push({ id: 'n' + Date.now(), title, body: b ? b.value.trim() : '', date: todayStr(), ts: Date.now() });
+  sortNotices();
+  if (t) t.value = ''; if (b) b.value = '';
+  persistNotices();
+  renderNoticeEditor();
+  showToast('공지를 추가했어요');
+}
+function updateNotice(i, field, val) { if (notices[i]) { notices[i][field] = val; persistNotices(); } }
+function removeNotice(i) { if (!confirm('이 공지를 삭제할까요?')) return; notices.splice(i, 1); persistNotices(); renderNoticeEditor(); }
+
+// 공지 수정 화면 (편집)
+function renderNoticeEditor() {
+  const host = document.getElementById('noticeEditor');
+  if (!host) return;
+  if (!notices.length) { host.innerHTML = '<p class="text-[13px] text-ios-secondary text-center py-4">등록된 공지가 없습니다.</p>'; return; }
+  host.innerHTML = notices.map((n, i) => `
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[11px] text-ios-secondary">${esc(n.date)}</span>
+        <button onclick="removeNotice(${i})" class="text-[13px] text-ios-red font-semibold btn-press">삭제</button>
+      </div>
+      <input class="ef-input mb-2 font-medium" value="${esc(n.title)}" placeholder="제목" oninput="updateNotice(${i},'title',this.value)">
+      <textarea class="ef-input" rows="3" placeholder="내용" oninput="updateNotice(${i},'body',this.value)">${esc(n.body)}</textarea>
+    </div>`).join('');
+}
+// 공지 내역 화면 (읽기 전용)
+function renderNoticesList() {
+  const host = document.getElementById('noticesList');
+  if (!host) return;
+  if (!notices.length) { host.innerHTML = '<div class="card px-4 py-6 text-center text-[13px] text-ios-secondary">등록된 공지가 없습니다.</div>'; return; }
+  host.innerHTML = notices.map(n => `
+    <div class="card px-4 py-3">
+      <p class="text-[14px] font-medium text-ios-label">${esc(n.title)}</p>
+      ${n.body ? `<p class="text-[13px] text-ios-secondary mt-0.5 whitespace-pre-line">${esc(n.body)}</p>` : ''}
+      <p class="text-xs text-ios-gray3 mt-1.5">${esc(n.date)}</p>
+    </div>`).join('');
+}
+// 홈 최근 공지 (최신 1건)
+function renderHomeNotice() {
+  const host = document.getElementById('homeNotice');
+  if (!host) return;
+  const n = notices[0];
+  if (!n) { host.innerHTML = '<div class="card px-4 py-4 text-center text-[13px] text-ios-secondary">등록된 공지가 없습니다.</div>'; return; }
+  host.innerHTML = `<div class="card px-4 py-3 flex gap-3">
+    <div class="w-8 h-8 rounded-full bg-ios-blue bg-opacity-10 flex items-center justify-center flex-shrink-0 mt-0.5">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="min-w-0">
+      <p class="text-[14px] font-medium text-ios-label">${esc(n.title)}</p>
+      ${n.body ? `<p class="text-[13px] text-ios-secondary mt-0.5 line-clamp-2">${esc(n.body)}</p>` : ''}
+      <p class="text-xs text-ios-gray3 mt-1.5">${esc(n.date)}</p>
+    </div></div>`;
+}
+
 // ===== 앱 설치 / 바로가기 추가 (PWA) =====
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
@@ -2514,30 +2823,35 @@ window.addEventListener('appinstalled', () => { deferredPrompt = null; showToast
 
 function isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
 function isiOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
-function showInstallGuide(kind) {
-  const msgs = {
-    ios: 'Safari 하단의 공유 버튼(□↑)을 누른 뒤 "홈 화면에 추가"를 선택하면 바로가기 아이콘이 생성됩니다.',
-    desktop: '브라우저 주소창 오른쪽의 설치 아이콘(⊕) 또는 메뉴(⋮) → "앱 설치"를 누르면 바탕화면에 바로가기가 생성됩니다.'
-  };
-  const el = document.getElementById('installMsg');
-  if (el) el.textContent = msgs[kind] || msgs.desktop;
+function closeInstall() { const m = document.getElementById('installModal'); if (m) m.classList.add('hidden'); }
+
+// 버튼 클릭 → "바로가기를 생성하시겠습니까?" 확인창
+function installApp() {
+  if (isStandalone()) { showToast('이미 설치되어 있어요'); return; }
+  const msg = document.getElementById('installMsg');
+  if (msg) msg.textContent = isiOS()
+    ? 'iOS는 Safari 공유 → "홈 화면에 추가"로 생성됩니다. 안내를 보시겠습니까?'
+    : '홈 화면(모바일) · 바탕화면(PC)에 바로가기를 생성하시겠습니까?';
   const m = document.getElementById('installModal'); if (m) m.classList.remove('hidden');
 }
-async function installApp() {
-  if (isStandalone()) { showToast('이미 설치되어 있어요'); return; }
-  if (deferredPrompt) {                       // Android/데스크톱 Chrome·Edge: 네이티브 설치 프롬프트
+
+// "예" → 생성 동의 → 바로 생성
+async function consentInstall() {
+  closeInstall();
+  if (deferredPrompt) {                       // Android/데스크톱 Chrome·Edge → 바로 설치 진행
     deferredPrompt.prompt();
     try { await deferredPrompt.userChoice; } catch (e) {}
     deferredPrompt = null;
     return;
   }
-  if (isiOS()) { showInstallGuide('ios'); return; }   // iOS Safari: 프롬프트 API 없음 → 안내
-  showInstallGuide('desktop');                         // 그 외: 수동 설치 안내
+  if (isiOS()) { showToast('Safari 공유 버튼 → "홈 화면에 추가"'); return; }
+  showToast('주소창의 설치 아이콘(⊕)을 눌러 추가하세요');
 }
 
 // ===== INIT =====
 loadConcertInfo();
 loadChecklist();
+loadNotices();
 loadStageInfo();
 loadHousePos();
 housePlot = buildHousePlot(stageInfo.sound); // 음향 설정 → 무대 배치 요소 생성
@@ -2551,50 +2865,44 @@ loadStageHidden();        // 요소 표시/숨김 상태
 loadInputMap();           // 인풋 채널(마이크/DI·연결·비고) 설정
 buildAllStagePlots();     // 팀 구성(comp) → 무대배치 요소 생성
 loadStagePlots();         // 저장된 드래그 위치 덮어쓰기
-switchTechBand(0);        // 기본 팀: 블루문 (무대배치도 + 인풋리스트 렌더링)
+renderTechRider();        // 테크라이더 팀 탭(teams 기반) + 무대배치도 + 인풋리스트
 
 // ===== 전체 데이터 재로딩 + 재렌더 (원격 변경 수신 시) =====
 function reloadAndRender() {
   loadConcertInfo(); loadStageInfo(); loadHousePos();
   loadTeams(); normalizeTeamComp();
-  loadStageHidden(); loadInputMap(); loadChecklist();
+  loadStageHidden(); loadInputMap(); loadChecklist(); loadNotices();
   housePlot = buildHousePlot(stageInfo.sound);
   buildAllStagePlots(); loadStagePlots();
   syncAllTeamNames();
   renderHome(); renderConcertInfo();
-  const idx = TECH_BANDS.indexOf(currentTechBand);
-  switchTechBand(idx >= 0 ? idx : 0);
+  renderTechRider();
   if (currentScreen === 'setlist') renderSetlist();
   if (currentScreen === 'checklist') renderChecklist();
 }
 
 // ===== 실시간 동기화 (Firebase Realtime Database) =====
-(function setupCloudSync() {
-  if (!FIREBASE_CONFIG.databaseURL || typeof firebase === 'undefined') {
-    console.info('[sync] 로컬 전용 모드 (Firebase 설정 없음). 사용자 간 실시간 공유를 원하면 FIREBASE_CONFIG를 채우세요.');
-    return;
-  }
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src; s.async = true;
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+function initFirebaseSync() {
   try { firebase.initializeApp(FIREBASE_CONFIG); } catch (e) {}
   const db = firebase.database();
-  const SYNC_KEYS = ['concertInfo', 'teams', 'stagePlots', 'housePos', 'stageHidden', 'inputMap', 'stageInfo', 'checklist'];
+  const SYNC_KEYS = ['concerts', 'teams', 'stagePlots', 'housePos', 'stageHidden', 'inputMap', 'stageInfo', 'checklist', 'notices'];
   let applyingRemote = false;
-
-  // 로컬 저장 → 클라우드 푸시 (localStorage.setItem 후킹)
   const origSet = localStorage.setItem.bind(localStorage);
   localStorage.setItem = function (k, v) {
     origSet(k, v);
-    if (!applyingRemote && SYNC_KEYS.indexOf(k) !== -1) {
-      db.ref('shared/' + k).set(v).catch(() => {});
-    }
+    if (!applyingRemote && SYNC_KEYS.indexOf(k) !== -1) db.ref('shared/' + k).set(v).catch(() => {});
   };
-
-  // 최초 1회: 로컬에 이미 있는 값을 클라우드가 비어있으면 업로드(시드)
   SYNC_KEYS.forEach((k) => {
     const ref = db.ref('shared/' + k);
-    ref.once('value').then((snap) => {
-      if (snap.val() == null) { const local = localStorage.getItem(k); if (local != null) ref.set(local).catch(() => {}); }
-    }).catch(() => {});
-    // 실시간 수신 → 로컬 반영 + 재렌더
+    ref.once('value').then((snap) => { if (snap.val() == null) { const local = localStorage.getItem(k); if (local != null) ref.set(local).catch(() => {}); } }).catch(() => {});
     ref.on('value', (snap) => {
       const v = snap.val();
       if (v == null || v === localStorage.getItem(k)) return;
@@ -2603,6 +2911,23 @@ function reloadAndRender() {
     });
   });
   console.info('[sync] 실시간 동기화 활성화');
+}
+(function setupCloudSync() {
+  // 프리뷰(localhost/file)에서는 Firebase를 아예 로드하지 않음 → 외부 의존성 없이 즉시 렌더
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:') {
+    console.info('[sync] 프리뷰(로컬) 모드 → 동기화/외부 로드 비활성화');
+    return;
+  }
+  if (!FIREBASE_CONFIG.databaseURL) {
+    console.info('[sync] 로컬 전용 모드 (FIREBASE_CONFIG 미설정)');
+    return;
+  }
+  // 배포 환경: Firebase compat SDK 동적 로드 후 동기화 시작
+  const base = 'https://www.gstatic.com/firebasejs/10.12.2/';
+  loadScript(base + 'firebase-app-compat.js')
+    .then(() => loadScript(base + 'firebase-database-compat.js'))
+    .then(() => initFirebaseSync())
+    .catch(() => console.warn('[sync] Firebase 로드 실패'));
 })();
 </script>
 </body>
