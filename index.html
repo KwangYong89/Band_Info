@@ -1530,15 +1530,17 @@ function concertCardHTML(c, idx, ended) {
       </div>
       <div class="progress-bar"><div class="progress-fill" style="width:${prog}%"></div></div>
     </div>`;
-  // 종료 공연은 토글 버튼 없음(비활성), 진행중 공연만 ▼ 토글
-  const toggle = ended ? '' : `<button type="button" aria-label="접기/펼치기" onclick="toggleConcertCollapse('${c.id}')" class="w-6 h-6 -ml-1 flex items-center justify-center text-ios-secondary btn-press">
+  // 진행중 공연은 ▼ 아이콘(상태 표시용). 토글은 카드(포스터) 클릭으로 처리 → 종료 공연은 ▼ 없음
+  const toggle = ended ? '' : `<span aria-hidden="true" class="w-6 h-6 -ml-1 flex items-center justify-center text-ios-secondary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="transition:transform .2s;transform:rotate(${collapsed ? '-90deg' : '0deg'})"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>`;
+          </span>`;
   const badge = ended
     ? `<span class="badge text-white" style="background:#8E8E93">● 종료</span>`
     : `<span class="badge bg-ios-green text-white">● UPCOMING</span>`;
-  const cardCls = 'card p-5 relative overflow-hidden' + (ended ? ' concert-ended' : '');
-  return `<div class="${cardCls}"${activeStyle}>
+  // 카드(포스터) 클릭 = 접기/펼치기 (종료 공연 제외)
+  const cardCls = 'card p-5 relative overflow-hidden' + (ended ? ' concert-ended' : ' cursor-pointer');
+  const cardClick = ended ? '' : ` onclick="toggleConcertCollapse('${c.id}')" role="button" aria-label="공연 접기/펼치기"`;
+  return `<div class="${cardCls}"${activeStyle}${cardClick}>
     ${bg}
     <div class="relative z-10">
       <div class="flex items-start justify-between mb-3">
@@ -1548,7 +1550,7 @@ function concertCardHTML(c, idx, ended) {
         </div>
         <span class="text-xs text-ios-secondary font-medium">${esc(dday)}</span>
       </div>
-      <h2 onclick="openConcertDetail(${idx})" class="text-[22px] font-bold text-ios-label leading-tight mb-1 cursor-pointer">${titleLines}</h2>
+      <h2 onclick="event.stopPropagation();openConcertDetail(${idx})" class="text-[22px] font-bold text-ios-label leading-tight mb-1 cursor-pointer">${titleLines}</h2>
       ${infoBlock}
       <!-- 접어도 진행률 '공간'은 유지(visibility) → 카드/포스터 크기 변동 방지 -->
       <div${collapsed ? ' style="visibility:hidden"' : ''}>${progressBlock}</div>
@@ -1682,7 +1684,6 @@ function renderConcertInfo() {
     const rowsHtml = (c.timetable || []).map(r => {
       const accent = TT_ACCENT[r.accent] || 'text-ios-blue';
       const titleColor = r.accent === 'muted' ? 'text-ios-secondary' : 'text-ios-label';
-      const badge = r.badge ? `<span class="badge ${TT_BADGE[r.badge] || 'bg-ios-blue bg-opacity-10 text-ios-blue'} text-[10px]">${esc(r.badge)}</span>` : '';
       const start = r.start || r.time || '';
       const dur = ttDurText(ttDiffMin(start, r.end));
       const timeText = start + (r.end ? ' - ' + r.end : '');
@@ -1692,7 +1693,7 @@ function renderConcertInfo() {
           ${dur ? `<div class="text-[10px] text-ios-gray3 inline-flex items-center gap-0.5 mt-0.5"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" class="flex-shrink-0"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.2"/><path d="M12 7.5V12l3 1.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>${esc(dur)}</div>` : ''}
         </div>
         <div class="flex-1 min-w-0">
-          <div class="text-[14px] font-medium ${titleColor} flex items-center gap-2 flex-wrap">${esc(r.title)}${badge}</div>
+          <div class="text-[14px] font-medium ${titleColor}">${esc(r.title)}</div>
           ${r.desc ? `<div class="text-xs text-ios-secondary mt-0.5">${esc(r.desc)}</div>` : ''}
         </div>
       </div>`;

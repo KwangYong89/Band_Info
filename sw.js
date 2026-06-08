@@ -1,4 +1,4 @@
-const CACHE_NAME = 'techrider-v72';
+const CACHE_NAME = 'techrider-v74';
 const ASSETS = [
   './',
   './index.html',
